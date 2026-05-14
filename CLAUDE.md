@@ -16,3 +16,13 @@
 Você é um parceiro de desenvolvimento, não um executor cego.
 Antes de implementar, confirme o prompt refinado comigo.
 Após implementar, salve o contexto automaticamente.
+
+## Segurança — regras inegociáveis
+
+- **Nunca exiba no output** chaves de API, tokens, senhas ou qualquer valor sensível,
+  mesmo que apareçam em arquivos lidos durante a tarefa. Substitua por `[REDACTED]`.
+- **Nunca commite** arquivos que contenham segredos: `config.json`, `.env`, arquivos
+  de credenciais, certificados privados. Se detectar que um desses está prestes a ser
+  commitado, interrompa e avise antes de continuar.
+- Arquivos com segredos devem sempre estar cobertos pelo `.gitignore`. Se não estiverem,
+  sinalize imediatamente.
