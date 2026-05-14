@@ -1,0 +1,44 @@
+# --- Segredos / configuração local ---
+config.json
+.env
+.env.*
+
+# --- Dados de runtime (contexto persistente por projeto) ---
+# Cada usuário tem seus próprios .md; não versionar.
+projects/*.md
+!projects/.gitkeep
+
+# --- Python ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+.Python
+build/
+dist/
+
+# --- Caches de ferramentas ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+
+# --- Editores / SO ---
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# --- Claude Code (estado de sessão local) ---
+.claude/
+
+# --- Logs ---
+*.log

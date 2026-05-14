@@ -1,0 +1,11 @@
+{
+  "openrouter": {
+    "api_key": "COLOQUE_SUA_CHAVE_AQUI",
+    "model": "google/gemini-2.0-flash-001",
+    "fallback_model": "anthropic/claude-haiku-4-5",
+    "max_tokens": 2000,
+    "temperature": 0.3
+  },
+  "projects_dir": "projects",
+  "default_language": "pt-BR"
+}
