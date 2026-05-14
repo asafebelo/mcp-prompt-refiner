@@ -3,9 +3,17 @@
   "openrouter": {
     "api_key": "COLOQUE_SUA_CHAVE_AQUI",
     "models": [
+      "nvidia/nemotron-3-super-120b-a12b:free",
+      "openai/gpt-oss-120b:free",
+      "meta-llama/llama-3.3-70b-instruct:free",
+      "google/gemini-2.0-flash-exp:free",
+      "inclusionai/ring-2.6-1t:free",
+      "qwen/qwen-2.5-7b-instruct:free",
+      "openai/gpt-oss-20b:free",
+      "meta-llama/llama-3.1-8b-instruct:free",
+      "mistralai/mistral-7b-instruct:free",
+      "poolside/laguna-m.1:free",
       "google/gemini-2.0-flash-001",
-      "google/gemini-flash-1.5-8b",
-      "meta-llama/llama-3.1-8b-instruct",
       "anthropic/claude-haiku-4-5"
     ],
     "max_tokens": 2000,
