@@ -50,25 +50,60 @@ def _build_client(api_key: str) -> OpenAI:
     )
 
 
-def call_llm(system_prompt: str, user_prompt: str) -> str:
-    """Chama a LLM leve via OpenRouter e devolve o texto da resposta.
+def _resolve_api_key(or_cfg: dict[str, Any]) -> str:
+    """Resolve a chave da OpenRouter: env var tem prioridade sobre config.json."""
+    import os
 
-    Tenta primeiro o modelo principal definido em config.json.
-    Se falhar, faz fallback para o modelo secundário.
-    Erros são logados no stderr para não corromper o canal stdio do MCP.
+    env_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    if env_key:
+        return env_key
+
+    file_key = or_cfg.get("api_key", "").strip()
+    if file_key and file_key != "COLOQUE_SUA_CHAVE_AQUI":
+        return file_key
+
+    raise ValueError(
+        "Chave da OpenRouter não configurada. "
+        "Defina a variável de ambiente OPENROUTER_API_KEY (recomendado) "
+        "ou edite config.json e coloque sua chave em openrouter.api_key."
+    )
+
+
+_DEFAULT_MODELS = [
+    "google/gemini-2.0-flash-001",
+    "google/gemini-flash-1.5-8b",
+    "meta-llama/llama-3.1-8b-instruct",
+    "anthropic/claude-haiku-4-5",
+]
+
+
+def _resolve_models(or_cfg: dict[str, Any]) -> list[str]:
+    """Resolve a lista de modelos a tentar em ordem de preferência.
+
+    Suporta tanto o formato novo (lista 'models') quanto o legado
+    ('model' + 'fallback_model') para não quebrar configs existentes.
     """
+    if "models" in or_cfg:
+        models = [m for m in or_cfg["models"] if isinstance(m, str) and m.strip()]
+        if models:
+            return models
+
+    # Compatibilidade com formato antigo
+    primary = or_cfg.get("model", "").strip()
+    fallback = or_cfg.get("fallback_model", "").strip()
+    if primary:
+        return [m for m in (primary, fallback) if m] or _DEFAULT_MODELS
+
+    return _DEFAULT_MODELS
+
+
+def call_llm(system_prompt: str, user_prompt: str) -> str:
+    """Chama a LLM via OpenRouter percorrendo a lista de modelos até obter resposta."""
     config = _load_config()
     or_cfg = config.get("openrouter", {})
 
-    api_key = or_cfg.get("api_key", "").strip()
-    if not api_key or api_key == "COLOQUE_SUA_CHAVE_AQUI":
-        raise ValueError(
-            "Chave da OpenRouter não configurada. "
-            "Edite config.json e coloque sua chave em openrouter.api_key."
-        )
-
-    primary_model = or_cfg.get("model", "google/gemini-2.0-flash-001")
-    fallback_model = or_cfg.get("fallback_model", "anthropic/claude-haiku-4-5")
+    api_key = _resolve_api_key(or_cfg)
+    models = _resolve_models(or_cfg)
     max_tokens = int(or_cfg.get("max_tokens", 2000))
     temperature = float(or_cfg.get("temperature", 0.3))
 
@@ -78,12 +113,12 @@ def call_llm(system_prompt: str, user_prompt: str) -> str:
         {"role": "user", "content": user_prompt},
     ]
 
-    # Tenta modelo primário, com fallback automático em caso de erro.
-    for attempt_model in (primary_model, fallback_model):
+    last_error: Exception | None = None
+    for model in models:
         try:
-            print(f"[mcp-prompt-refiner] chamando modelo {attempt_model}", file=sys.stderr)
+            print(f"[mcp-prompt-refiner] chamando modelo {model}", file=sys.stderr)
             response = client.chat.completions.create(
-                model=attempt_model,
+                model=model,
                 messages=messages,
                 max_tokens=max_tokens,
                 temperature=temperature,
@@ -93,16 +128,10 @@ def call_llm(system_prompt: str, user_prompt: str) -> str:
                 raise ValueError("resposta da LLM veio vazia")
             return content.strip()
         except (OpenAIError, ValueError) as e:
-            print(
-                f"[mcp-prompt-refiner] falha em {attempt_model}: {e}",
-                file=sys.stderr,
-            )
-            # Se for o último modelo da lista, propaga o erro.
-            if attempt_model == fallback_model:
-                raise
+            print(f"[mcp-prompt-refiner] falha em {model}: {e}", file=sys.stderr)
+            last_error = e
 
-    # Inalcançável — o loop sempre retorna ou levanta.
-    raise RuntimeError("fluxo inesperado em call_llm")
+    raise RuntimeError(f"todos os modelos falharam. Último erro: {last_error}")
 
 
 def get_default_language() -> str:

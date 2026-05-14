@@ -1,8 +1,13 @@
 {
+  "_comment_api_key": "RECOMENDADO: deixe api_key como placeholder e injete a chave via variável de ambiente OPENROUTER_API_KEY no registro do MCP (veja README ou instruções do install.sh). Isso evita que a chave fique em arquivo no disco.",
   "openrouter": {
     "api_key": "COLOQUE_SUA_CHAVE_AQUI",
-    "model": "google/gemini-2.0-flash-001",
-    "fallback_model": "anthropic/claude-haiku-4-5",
+    "models": [
+      "google/gemini-2.0-flash-001",
+      "google/gemini-flash-1.5-8b",
+      "meta-llama/llama-3.1-8b-instruct",
+      "anthropic/claude-haiku-4-5"
+    ],
     "max_tokens": 2000,
     "temperature": 0.3
   },
