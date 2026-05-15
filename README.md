@@ -155,76 +155,106 @@ O servidor só conecta ao iniciar uma nova sessão.
 
 ---
 
-## Modos de deploy
+## Conectando o mcp-prompt-refiner aos clientes de IA
 
-O servidor suporta dois transportes. Escolha conforme o cliente que vai usar:
+O servidor opera em dois modos de transporte:
 
-### Modo stdio (padrão) — Claude Code, Claude Desktop, Cursor, Zed, Windsurf
+- **stdio** — comunicação via stdin/stdout, sem rede. Usado por Claude Code, Claude Desktop, Cursor, Zed e Windsurf.
+- **HTTP** — expõe o endpoint `/mcp` via HTTP. Necessário para Claude Web Connector, ChatGPT e Codex CLI (requer URL HTTPS pública).
 
-```bash
-python server.py              # stdio, padrão
-python server.py --mode stdio # explícito
-```
-
-Registre no cliente via `claude mcp add` ou no `claude_desktop_config.json`. Não requer rede.
-
-### Modo HTTP — Claude Web Connector e ChatGPT Connector
-
-```bash
-python server.py --mode http              # 0.0.0.0:8000
-python server.py --mode http --port 9000  # porta customizada
-MCP_MODE=http MCP_PORT=9000 python server.py  # via env vars
-```
-
-O servidor sobe em `http://HOST:PORT/mcp`. Para conectar ao Claude Web ou ChatGPT, você precisa de uma **URL pública HTTPS** — use ngrok, Cloudflare Tunnel ou exponha via seu homelab:
-
-```bash
-# Exemplo com ngrok (dev/teste)
-ngrok http 8000
-# URL gerada: https://abc123.ngrok.app → aponte /mcp no connector
-
-# Exemplo com Cloudflare Tunnel (produção/homelab)
-cloudflared tunnel --url http://localhost:8000
-```
-
-Cole a URL pública (`https://seu-dominio.com/mcp`) no campo de conector do Claude ou do ChatGPT.
-
-**Variáveis de ambiente disponíveis:**
-
-| Variável | Padrão | Descrição |
-|---|---|---|
-| `MCP_MODE` | `stdio` | Modo de transporte: `stdio` ou `http` |
-| `MCP_HOST` | `0.0.0.0` | Host para modo HTTP |
-| `MCP_PORT` | `8000` | Porta para modo HTTP |
-| `OPENROUTER_API_KEY` | — | Chave da OpenRouter (prioridade sobre config.json) |
+O script `install.sh` guia você pelo modo correto com um menu interativo. As seções abaixo explicam o processo completo para cada cliente.
 
 ---
 
-## Conectando em cada cliente
+### Claude Code (CLI)
 
-### Claude Code
+**MCP (Model Context Protocol)** é o protocolo que permite ao Claude Code se comunicar com servidores externos de ferramentas — como este.
+
+#### Pré-requisitos
+- [Claude Code](https://claude.ai/code) instalado (`claude --version` deve funcionar)
+- Python 3.11+ e o projeto clonado com `.venv` criado (`./install.sh`)
+- Chave da [OpenRouter](https://openrouter.ai/keys) configurada em `config.json` ou via `OPENROUTER_API_KEY`
+
+#### Como configurar
+
+Execute o instalador e escolha a opção **1**:
+
 ```bash
-claude mcp add --scope user mcp-prompt-refiner \
-  /caminho/para/.venv/bin/python \
-  /caminho/para/server.py
+./install.sh
+# → escolha: 1) stdio — Claude Code
 ```
 
-### Claude Desktop
-Adicione em `claude_desktop_config.json`:
+Ou registre manualmente:
+
+```bash
+claude mcp add --scope user mcp-prompt-refiner \
+  /caminho/para/mcp-prompt-refiner/.venv/bin/python \
+  /caminho/para/mcp-prompt-refiner/server.py
+
+# Verifique:
+claude mcp get mcp-prompt-refiner
+```
+
+O flag `--scope user` torna o servidor disponível em **todos os seus projetos**, sem precisar registrar novamente a cada clone.
+
+#### Como usar no chat
+
+Reinicie o Claude Code. As quatro ferramentas aparecem automaticamente:
+
+```
+use o refine_prompt para: quero adicionar autenticação JWT no meu FastAPI
+```
+
+#### Solução de problemas
+- **Servidor não aparece:** verifique com `claude mcp list` e confirme que o caminho do `.venv` está correto.
+- **Erro "module not found":** rode `.venv/bin/pip install -r requirements.txt` dentro do diretório do projeto.
+
+---
+
+### Claude Desktop (Windows / macOS / Linux)
+
+#### Pré-requisitos
+- [Claude Desktop](https://claude.ai/download) instalado
+- Python 3.11+ acessível no sistema (ou via WSL no Windows)
+- Projeto clonado e `.venv` criado
+- **Windows:** WSL 2 instalado e o projeto clonado dentro do filesystem WSL (ex: `/mnt/d/...` ou `~/projetos/...`)
+
+#### Como configurar
+
+Execute o instalador dentro do WSL (Windows) ou terminal nativo (macOS/Linux) e escolha a opção **2**:
+
+```bash
+./install.sh
+# → escolha: 2) stdio — Claude Desktop
+```
+
+O script detecta o sistema e exibe o bloco JSON correto. Copie-o e adicione ao arquivo de configuração do Claude Desktop:
+
+| Sistema | Caminho do arquivo |
+|---|---|
+| Windows (Store) | `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\claude_desktop_config.json` |
+| Windows (instalador direto) | `%APPDATA%\Claude\claude_desktop_config.json` |
+| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Linux | `~/.config/Claude/claude_desktop_config.json` |
+
+**Exemplo para Windows com WSL** (gerado automaticamente pelo `install.sh`):
+
 ```json
 {
   "mcpServers": {
     "mcp-prompt-refiner": {
       "command": "wsl",
-      "args": ["/caminho/wsl/.venv/bin/python", "/caminho/wsl/server.py"]
+      "args": [
+        "/caminho/wsl/.venv/bin/python",
+        "/caminho/wsl/server.py"
+      ]
     }
   }
 }
 ```
-> No Windows com WSL: use `wsl` como comando e caminhos WSL nos args.
 
-### Cursor / Zed / Windsurf
-Adicione nas configurações de MCP do editor:
+**Exemplo para macOS / Linux nativo:**
+
 ```json
 {
   "mcpServers": {
@@ -236,17 +266,142 @@ Adicione nas configurações de MCP do editor:
 }
 ```
 
-### Claude Web Connector / ChatGPT Connector
-```bash
-# 1. Inicie o servidor em modo HTTP
-python server.py --mode http --port 8000
+> Se o arquivo `claude_desktop_config.json` já existir com outros servidores, adicione apenas a chave `"mcp-prompt-refiner"` dentro de `"mcpServers"` — não substitua o arquivo inteiro.
 
-# 2. Exponha com Cloudflare Tunnel ou ngrok
-cloudflared tunnel --url http://localhost:8000
+#### Reiniciar corretamente
 
-# 3. Cole a URL pública no campo do conector
-# Ex: https://meu-refiner.example.com/mcp
+Feche o Claude Desktop completamente — **não apenas minimize**:
+- **Windows:** clique com botão direito no ícone da bandeja do sistema → **Quit**
+- **macOS:** menu Claude → **Quit Claude**
+
+Reabra. O servidor conecta na inicialização.
+
+#### Solução de problemas
+- **MCP não aparece em Configurações → Conectores:** o processo não foi encerrado completamente. Use o Gerenciador de Tarefas (Windows) ou `killall Claude` (macOS) e tente novamente.
+- **Erro de caminho no Windows:** confirme que o caminho nos `args` é um caminho WSL (começa com `/`), não um caminho Windows (`C:\`).
+
+---
+
+### Cursor / Zed / Windsurf
+
+Esses editores seguem o mesmo padrão stdio do Claude Desktop.
+
+Adicione nas configurações de MCP do editor (geralmente em um arquivo `mcp.json` ou nas preferências):
+
+```json
+{
+  "mcpServers": {
+    "mcp-prompt-refiner": {
+      "command": "/caminho/para/.venv/bin/python",
+      "args": ["/caminho/para/server.py"]
+    }
+  }
+}
 ```
+
+Consulte a documentação de cada editor para o caminho exato do arquivo de configuração.
+
+---
+
+### Claude Web Connector
+
+O Claude Web permite adicionar servidores MCP externos via **Configurações → Conectores personalizados**. O servidor precisa estar acessível via **HTTPS público**.
+
+#### Pré-requisitos
+- Conta Claude Pro ou Team (conectores personalizados requerem plano pago)
+- Servidor rodando em modo HTTP acessível publicamente
+- URL HTTPS válida apontando para o endpoint `/mcp` — use [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) ou [ngrok](https://ngrok.com)
+
+#### Como iniciar o servidor
+
+```bash
+# Ative o venv
+source .venv/bin/activate
+
+# Inicie em modo HTTP
+python server.py --mode http --host 0.0.0.0 --port 8000
+```
+
+Ou via variável de ambiente:
+
+```bash
+MCP_MODE=http MCP_PORT=8000 python server.py
+```
+
+#### Expondo com Cloudflare Tunnel (recomendado para homelab)
+
+```bash
+# Em outro terminal, com cloudflared instalado:
+cloudflared tunnel --url http://localhost:8000
+# → URL gerada: https://xxxx.trycloudflare.com
+```
+
+Para uma URL permanente em um domínio próprio, configure um [Named Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/get-started/) no painel da Cloudflare.
+
+#### Expondo com ngrok (dev / testes rápidos)
+
+```bash
+ngrok http 8000
+# → URL gerada: https://xxxx.ngrok.app
+```
+
+#### Configurando no Claude Web
+
+1. Acesse [claude.ai](https://claude.ai) → **Configurações** → **Conectores**
+2. Clique em **Adicionar conector**
+3. Cole a URL pública no formato: `https://xxxx.trycloudflare.com/mcp`
+4. Salve e inicie uma nova conversa — as ferramentas estarão disponíveis
+
+#### Solução de problemas
+- **Erro de conexão:** confirme que o servidor está rodando (`curl https://sua-url/mcp -X POST`) e que o tunnel está ativo.
+- **Tunnel caiu:** o Claude Web desconecta automaticamente quando o tunnel encerra. Reinicie o tunnel e reconecte o conector.
+
+---
+
+### ChatGPT (Web, Desktop e Codex CLI)
+
+O ChatGPT suporta servidores MCP via **Configurações → Conectores**. O fluxo é idêntico ao Claude Web: servidor HTTP + URL HTTPS pública.
+
+#### Pré-requisitos
+- Conta ChatGPT Plus, Pro ou Team
+- Servidor rodando em modo HTTP (mesmo processo descrito na seção Claude Web acima)
+- URL HTTPS pública via Cloudflare Tunnel ou ngrok
+
+#### Configurando no ChatGPT Web / Desktop
+
+1. Abra o ChatGPT → **Configurações** → **Conectores** (ou **MCP Servers** dependendo da versão)
+2. Clique em **Adicionar servidor MCP**
+3. Cole a URL: `https://sua-url-publica/mcp`
+4. Confirme e inicie uma nova conversa
+
+> O ChatGPT Desktop (aplicativo nativo) segue o mesmo fluxo da versão web para conectores remotos.
+
+#### Configurando no Codex CLI
+
+O [Codex CLI](https://github.com/openai/codex) da OpenAI suporta MCP via arquivo de configuração:
+
+```bash
+# ~/.codex/config.toml (ou conforme documentação da versão instalada)
+[mcp_servers.mcp-prompt-refiner]
+url = "https://sua-url-publica/mcp"
+```
+
+Consulte a [documentação oficial do Codex CLI](https://github.com/openai/codex) para a versão exata do formato de configuração.
+
+#### Solução de problemas
+- **Ferramentas não aparecem:** inicie uma **nova conversa** após adicionar o conector — conversas existentes não recarregam os servidores MCP.
+- **Erro 401/403:** o endpoint `/mcp` deste servidor não requer autenticação por padrão. Se aparecer erro de auth, verifique se há proxy ou firewall na frente do tunnel.
+
+---
+
+### Referência rápida: variáveis de ambiente
+
+| Variável | Padrão | Descrição |
+|---|---|---|
+| `MCP_MODE` | `stdio` | Modo de transporte: `stdio` ou `http` |
+| `MCP_HOST` | `0.0.0.0` | Host para modo HTTP |
+| `MCP_PORT` | `8000` | Porta para modo HTTP |
+| `OPENROUTER_API_KEY` | — | Chave da OpenRouter (prioridade sobre `config.json`) |
 
 ---
 
