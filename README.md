@@ -155,6 +155,101 @@ O servidor só conecta ao iniciar uma nova sessão.
 
 ---
 
+## Modos de deploy
+
+O servidor suporta dois transportes. Escolha conforme o cliente que vai usar:
+
+### Modo stdio (padrão) — Claude Code, Claude Desktop, Cursor, Zed, Windsurf
+
+```bash
+python server.py              # stdio, padrão
+python server.py --mode stdio # explícito
+```
+
+Registre no cliente via `claude mcp add` ou no `claude_desktop_config.json`. Não requer rede.
+
+### Modo HTTP — Claude Web Connector e ChatGPT Connector
+
+```bash
+python server.py --mode http              # 0.0.0.0:8000
+python server.py --mode http --port 9000  # porta customizada
+MCP_MODE=http MCP_PORT=9000 python server.py  # via env vars
+```
+
+O servidor sobe em `http://HOST:PORT/mcp`. Para conectar ao Claude Web ou ChatGPT, você precisa de uma **URL pública HTTPS** — use ngrok, Cloudflare Tunnel ou exponha via seu homelab:
+
+```bash
+# Exemplo com ngrok (dev/teste)
+ngrok http 8000
+# URL gerada: https://abc123.ngrok.app → aponte /mcp no connector
+
+# Exemplo com Cloudflare Tunnel (produção/homelab)
+cloudflared tunnel --url http://localhost:8000
+```
+
+Cole a URL pública (`https://seu-dominio.com/mcp`) no campo de conector do Claude ou do ChatGPT.
+
+**Variáveis de ambiente disponíveis:**
+
+| Variável | Padrão | Descrição |
+|---|---|---|
+| `MCP_MODE` | `stdio` | Modo de transporte: `stdio` ou `http` |
+| `MCP_HOST` | `0.0.0.0` | Host para modo HTTP |
+| `MCP_PORT` | `8000` | Porta para modo HTTP |
+| `OPENROUTER_API_KEY` | — | Chave da OpenRouter (prioridade sobre config.json) |
+
+---
+
+## Conectando em cada cliente
+
+### Claude Code
+```bash
+claude mcp add --scope user mcp-prompt-refiner \
+  /caminho/para/.venv/bin/python \
+  /caminho/para/server.py
+```
+
+### Claude Desktop
+Adicione em `claude_desktop_config.json`:
+```json
+{
+  "mcpServers": {
+    "mcp-prompt-refiner": {
+      "command": "wsl",
+      "args": ["/caminho/wsl/.venv/bin/python", "/caminho/wsl/server.py"]
+    }
+  }
+}
+```
+> No Windows com WSL: use `wsl` como comando e caminhos WSL nos args.
+
+### Cursor / Zed / Windsurf
+Adicione nas configurações de MCP do editor:
+```json
+{
+  "mcpServers": {
+    "mcp-prompt-refiner": {
+      "command": "/caminho/para/.venv/bin/python",
+      "args": ["/caminho/para/server.py"]
+    }
+  }
+}
+```
+
+### Claude Web Connector / ChatGPT Connector
+```bash
+# 1. Inicie o servidor em modo HTTP
+python server.py --mode http --port 8000
+
+# 2. Exponha com Cloudflare Tunnel ou ngrok
+cloudflared tunnel --url http://localhost:8000
+
+# 3. Cole a URL pública no campo do conector
+# Ex: https://meu-refiner.example.com/mcp
+```
+
+---
+
 ## Personalizar a cadeia de modelos
 
 Edite o campo `models` em `config.json`. A ordem importa — o primeiro modelo disponível é usado:

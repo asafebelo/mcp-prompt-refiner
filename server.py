@@ -1,18 +1,28 @@
 """
-mcp-prompt-refiner — servidor MCP via stdio.
+mcp-prompt-refiner — servidor MCP com suporte a stdio e HTTP.
 
-Registra quatro ferramentas:
-  - refine_prompt    : refina uma intenção crua em prompt estruturado
-  - save_context     : persiste estado do projeto em Markdown
-  - load_context     : recupera o contexto Markdown de um projeto
-  - list_projects    : lista projetos com contexto salvo
+Modos de execução:
+  stdio (padrão) — comunicação via stdin/stdout, para Claude Code e Claude Desktop.
+  http           — servidor HTTP com transporte Streamable HTTP, para Claude Web
+                   Connector e ChatGPT Connector (requer URL pública via tunnel).
 
-Comunicação via stdio — logs sempre no stderr para não corromper o canal.
+Controle do modo:
+  --mode stdio|http        argumento de linha de comando (prioridade máxima)
+  MCP_MODE=stdio|http      variável de ambiente (fallback)
+  sem nada                 assume stdio
+
+Ferramentas expostas:
+  refine_prompt   — refina intenção crua em prompt estruturado
+  save_context    — persiste estado do projeto em Markdown
+  load_context    — recupera contexto de um projeto
+  list_projects   — lista projetos com contexto salvo
 """
 
 from __future__ import annotations
 
+import argparse
 import asyncio
+import os
 import sys
 from typing import Any
 
@@ -27,14 +37,19 @@ from tools import (
     save_context,
 )
 
+# ---------------------------------------------------------------------------
+# Instância do servidor MCP
+# ---------------------------------------------------------------------------
 
-# Instância do servidor MCP. O nome é o identificador que aparece nos logs/cliente.
 app: Server = Server("mcp-prompt-refiner")
 
 
+# ---------------------------------------------------------------------------
+# Declaração das ferramentas
+# ---------------------------------------------------------------------------
+
 @app.list_tools()
 async def list_tools() -> list[Tool]:
-    """Declara as ferramentas disponíveis e seus schemas de entrada."""
     return [
         Tool(
             name="refine_prompt",
@@ -73,29 +88,11 @@ async def list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "project_name": {
-                        "type": "string",
-                        "description": "Nome do projeto.",
-                    },
-                    "what_was_done": {
-                        "type": "string",
-                        "description": "O que foi implementado ou feito nesta iteração.",
-                    },
-                    "decisions": {
-                        "type": "string",
-                        "description": "Decisões técnicas tomadas (opcional).",
-                        "default": "",
-                    },
-                    "next_steps": {
-                        "type": "string",
-                        "description": "O que ainda falta fazer (opcional).",
-                        "default": "",
-                    },
-                    "project_description": {
-                        "type": "string",
-                        "description": "Descrição geral do projeto (usado apenas na primeira vez).",
-                        "default": "",
-                    },
+                    "project_name": {"type": "string"},
+                    "what_was_done": {"type": "string"},
+                    "decisions": {"type": "string", "default": ""},
+                    "next_steps": {"type": "string", "default": ""},
+                    "project_description": {"type": "string", "default": ""},
                 },
                 "required": ["project_name", "what_was_done"],
             },
@@ -109,10 +106,7 @@ async def list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "project_name": {
-                        "type": "string",
-                        "description": "Nome do projeto.",
-                    },
+                    "project_name": {"type": "string"},
                 },
                 "required": ["project_name"],
             },
@@ -123,22 +117,17 @@ async def list_tools() -> list[Tool]:
                 "Lista todos os projetos com contexto salvo, mostrando o nome "
                 "e a data da última atualização."
             ),
-            inputSchema={
-                "type": "object",
-                "properties": {},
-                "required": [],
-            },
+            inputSchema={"type": "object", "properties": {}, "required": []},
         ),
     ]
 
 
+# ---------------------------------------------------------------------------
+# Despachante de ferramentas
+# ---------------------------------------------------------------------------
+
 @app.call_tool()
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
-    """Despacha a chamada para a função correspondente da tool.
-
-    Erros são capturados e devolvidos como TextContent — o cliente MCP exibe
-    a mensagem ao Claude para que ele saiba o que deu errado.
-    """
     try:
         if name == "refine_prompt":
             result = refine_prompt(
@@ -164,29 +153,122 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
         return [TextContent(type="text", text=result)]
 
     except Exception as e:
-        # Loga no stderr e devolve mensagem amigável ao cliente.
-        print(
-            f"[mcp-prompt-refiner] erro na tool '{name}': {e}",
-            file=sys.stderr,
-        )
-        return [
-            TextContent(
-                type="text",
-                text=f"Erro ao executar '{name}': {e}",
-            )
-        ]
+        print(f"[mcp-prompt-refiner] erro na tool '{name}': {e}", file=sys.stderr)
+        return [TextContent(type="text", text=f"Erro ao executar '{name}': {e}")]
 
 
-async def main() -> None:
-    """Inicializa o transporte stdio e mantém o servidor em loop."""
-    print("[mcp-prompt-refiner] servidor iniciado via stdio", file=sys.stderr)
+# ---------------------------------------------------------------------------
+# Modo stdio
+# ---------------------------------------------------------------------------
+
+async def run_stdio() -> None:
+    print("[mcp-prompt-refiner] modo stdio iniciado", file=sys.stderr)
     async with stdio_server() as (read_stream, write_stream):
-        await app.run(
-            read_stream,
-            write_stream,
-            app.create_initialization_options(),
-        )
+        await app.run(read_stream, write_stream, app.create_initialization_options())
+
+
+# ---------------------------------------------------------------------------
+# Modo HTTP (Streamable HTTP — compatível com Claude Web e ChatGPT Connector)
+# ---------------------------------------------------------------------------
+
+def build_http_app():
+    """Constrói e retorna o app ASGI com transporte Streamable HTTP no endpoint /mcp."""
+    import contextlib
+    from starlette.middleware.cors import CORSMiddleware
+    from starlette.responses import PlainTextResponse
+    from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+
+    session_manager = StreamableHTTPSessionManager(
+        app=app,
+        stateless=True,
+        json_response=False,
+    )
+
+    @contextlib.asynccontextmanager
+    async def lifespan(inner_app):
+        async with session_manager.run():
+            yield
+
+    async def router(scope, receive, send):
+        """Roteia /mcp para o session_manager; demais paths retornam 404."""
+        if scope["type"] == "lifespan":
+            # Repassa o lifespan para o session_manager iniciar corretamente
+            async with session_manager.run():
+                message = await receive()
+                if message["type"] == "lifespan.startup":
+                    await send({"type": "lifespan.startup.complete"})
+                message = await receive()
+                if message["type"] == "lifespan.shutdown":
+                    await send({"type": "lifespan.shutdown.complete"})
+            return
+
+        path = scope.get("path", "")
+        if path in ("/mcp", "/mcp/"):
+            await session_manager.handle_request(scope, receive, send)
+        else:
+            response = PlainTextResponse("Not Found", status_code=404)
+            await response(scope, receive, send)
+
+    # Aplica CORS como middleware ASGI puro
+    cors_app = CORSMiddleware(
+        router,
+        allow_origins=["*"],
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_headers=["*"],
+    )
+    return cors_app
+
+
+def run_http(host: str, port: int) -> None:
+    import uvicorn
+    starlette_app = build_http_app()
+    print(f"[mcp-prompt-refiner] modo HTTP em http://{host}:{port}/mcp", file=sys.stderr)
+    uvicorn.run(starlette_app, host=host, port=port, log_level="info")
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="mcp-prompt-refiner — servidor MCP para refinamento de prompts",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Modos:
+  stdio   Claude Code, Claude Desktop, Cursor, Zed, Windsurf (padrão)
+  http    Claude Web Connector, ChatGPT Connector (requer URL pública)
+
+Exemplos:
+  python server.py                        # stdio
+  python server.py --mode http            # HTTP em 0.0.0.0:8000
+  python server.py --mode http --port 9000
+  MCP_MODE=http python server.py
+        """,
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["stdio", "http"],
+        default=os.environ.get("MCP_MODE", "stdio"),
+        help="Modo de transporte (padrão: stdio)",
+    )
+    parser.add_argument(
+        "--host",
+        default=os.environ.get("MCP_HOST", "0.0.0.0"),
+        help="Host para modo HTTP (padrão: 0.0.0.0)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=int(os.environ.get("MCP_PORT", "8000")),
+        help="Porta para modo HTTP (padrão: 8000)",
+    )
+    return parser.parse_args()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    args = _parse_args()
+    if args.mode == "http":
+        run_http(args.host, args.port)
+    else:
+        asyncio.run(run_stdio())
