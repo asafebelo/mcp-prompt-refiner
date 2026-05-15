@@ -82,7 +82,7 @@ def _update_section(content: str, header: str, new_body: str) -> str:
     )
     if not pattern.search(content):
         return content
-    return pattern.sub(rf"\1{new_body}\n\n", content, count=1)
+    return pattern.sub(lambda m: m.group(1) + new_body + "\n\n", content, count=1)
 
 
 def _append_iteration(
