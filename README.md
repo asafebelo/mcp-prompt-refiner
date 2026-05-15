@@ -29,6 +29,10 @@ O `mcp-prompt-refiner` é um servidor [MCP](https://modelcontextprotocol.io) que
 
 O refinamento é feito por uma LLM leve via [OpenRouter](https://openrouter.ai), percorrendo uma cadeia de modelos baratos em ordem — só escala para modelos mais caros se os anteriores falharem.
 
+> **Contexto persistido por projeto**
+>
+> Cada projeto que usa o `mcp-prompt-refiner` ganha automaticamente um arquivo `projects/{nome}.md` dentro da pasta do servidor. Esse arquivo acumula, a cada iteração, o histórico de decisões técnicas, o estado atual da implementação e os próximos passos — permitindo que o assistente retome exatamente de onde parou em qualquer sessão futura, sem precisar reexplicar nada.
+
 ---
 
 ## Como funciona por baixo dos panos
@@ -45,12 +49,23 @@ server.py  ←── MCP stdio transport
 ```
 
 **Cadeia de modelos (ordem de preferência / custo crescente):**
-1. `google/gemini-2.0-flash-001`
-2. `google/gemini-flash-1.5-8b`
-3. `meta-llama/llama-3.1-8b-instruct`
-4. `anthropic/claude-haiku-4-5` ← último recurso
 
-Se o primeiro modelo falhar (rate limit, timeout, resposta vazia), o próximo da lista é tentado automaticamente. Haiku entra apenas se todos os outros falharem.
+| # | Modelo | Custo |
+|---|---|---|
+| 1 | `nvidia/nemotron-3-super-120b-a12b:free` | gratuito |
+| 2 | `openai/gpt-oss-120b:free` | gratuito |
+| 3 | `meta-llama/llama-3.3-70b-instruct:free` | gratuito |
+| 4 | `google/gemini-2.0-flash-exp:free` | gratuito |
+| 5 | `inclusionai/ring-2.6-1t:free` | gratuito |
+| 6 | `qwen/qwen-2.5-7b-instruct:free` | gratuito |
+| 7 | `openai/gpt-oss-20b:free` | gratuito |
+| 8 | `meta-llama/llama-3.1-8b-instruct:free` | gratuito |
+| 9 | `mistralai/mistral-7b-instruct:free` | gratuito |
+| 10 | `poolside/laguna-m.1:free` | gratuito |
+| 11 | `google/gemini-2.0-flash-001` | pago ← fallback |
+| 12 | `anthropic/claude-haiku-4-5` | pago ← último recurso |
+
+Se o primeiro modelo falhar (rate limit, timeout, resposta vazia), o próximo da lista é tentado automaticamente. Os modelos pagos só entram se todos os gratuitos falharem.
 
 **Persistência de contexto:**
 Cada projeto ganha um arquivo `projects/{nome}.md` com descrição, decisões técnicas, estado atual, próximos passos e histórico de iterações com timestamps. O arquivo é local — não vai ao git.
@@ -147,7 +162,10 @@ O servidor só conecta ao iniciar uma nova sessão.
 
    > "carrega o contexto do projeto meu-projeto antes de continuar"
 
-3. O Claude lê o `.md` e retoma de onde parou — sem você precisar reexplicar nada
+3. O Claude lê o `projects/meu-projeto.md` e retoma de onde parou — sem você precisar reexplicar nada
+
+> **Onde fica o arquivo de contexto?**
+> O arquivo `projects/{nome}.md` fica dentro da pasta do `mcp-prompt-refiner`, não no seu projeto. Ele é local e não vai ao git (coberto pelo `.gitignore`). Você pode abri-lo a qualquer momento para revisar ou editar manualmente o histórico.
 
 ### Verificar todos os projetos salvos
 

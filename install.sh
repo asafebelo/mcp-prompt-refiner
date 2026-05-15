@@ -66,25 +66,61 @@ fi
 # ---------------------------------------------------------------------------
 
 echo ""
-echo "╔════════════════════════════════════════════════════════╗"
-echo "║         mcp-prompt-refiner :: modo de deploy           ║"
-echo "╠════════════════════════════════════════════════════════╣"
-echo "║  1) stdio — Claude Code (recomendado para dev local)   ║"
-echo "║  2) stdio — Claude Desktop (WSL / Linux / macOS)       ║"
-echo "║  3) HTTP local (Claude Web Connector / ChatGPT)        ║"
-echo "║  4) HTTP + tunnel público (Cloudflare / ngrok)         ║"
-echo "╚════════════════════════════════════════════════════════╝"
+echo "╔════════════════════════════════════════════════════════════════╗"
+echo "║           mcp-prompt-refiner :: modos de deploy               ║"
+echo "╠════════════════════════════════════════════════════════════════╣"
+echo "║  1) stdio — Claude Code (recomendado para dev local)          ║"
+echo "║  2) stdio — Claude Desktop (WSL / Linux / macOS)              ║"
+echo "║  3) HTTP local (Claude Web Connector / ChatGPT)               ║"
+echo "║  4) HTTP + tunnel público (Cloudflare / ngrok)                ║"
+echo "╠════════════════════════════════════════════════════════════════╣"
+echo "║  Você pode configurar múltiplos ambientes de uma vez.         ║"
+echo "║  Exemplos: '1'  →  apenas Claude Code                        ║"
+echo "║            '1,2'  →  Claude Code + Claude Desktop             ║"
+echo "║            '1,2,4'  →  Code + Desktop + tunnel público        ║"
+echo "╚════════════════════════════════════════════════════════════════╝"
 echo ""
 
-DEPLOY_MODE=""
+# Valida e normaliza entrada com seleção múltipla (ex: "1,2,3" ou "1 2 3")
+DEPLOY_MODES=""
 while true; do
-  printf "Escolha o modo [1-4]: "
-  read -r DEPLOY_MODE
-  case "$DEPLOY_MODE" in
-    1|2|3|4) break ;;
-    *) echo "  Entrada inválida. Digite 1, 2, 3 ou 4." ;;
-  esac
+  printf "Escolha os modos [1-4, separados por vírgula]: "
+  read -r RAW_INPUT
+
+  # Normaliza: troca espaços por vírgulas, remove duplicatas, ordena
+  NORMALIZED="$(echo "$RAW_INPUT" | tr ' ' ',' | tr -s ',')"
+  VALID=1
+  DEPLOY_MODES=""
+
+  IFS=',' read -r -a SELECTIONS <<< "$NORMALIZED"
+  for SEL in "${SELECTIONS[@]}"; do
+    SEL="$(echo "$SEL" | tr -d '[:space:]')"
+    case "$SEL" in
+      1|2|3|4)
+        # Adiciona apenas se ainda não estiver na lista
+        case ",$DEPLOY_MODES," in
+          *",$SEL,"*) ;;
+          *) DEPLOY_MODES="${DEPLOY_MODES:+$DEPLOY_MODES,}$SEL" ;;
+        esac
+        ;;
+      "")
+        ;;
+      *)
+        echo "  Valor inválido: '$SEL'. Use apenas os números 1, 2, 3 ou 4."
+        VALID=0
+        break
+        ;;
+    esac
+  done
+
+  if [ "$VALID" -eq 1 ] && [ -n "$DEPLOY_MODES" ]; then
+    break
+  elif [ "$VALID" -eq 1 ]; then
+    echo "  Entrada vazia. Digite ao menos um número (1-4)."
+  fi
 done
+
+echo "  Ambientes selecionados: $DEPLOY_MODES"
 
 # ---------------------------------------------------------------------------
 # Opção 1 — stdio para Claude Code
@@ -306,15 +342,21 @@ _deploy_http_tunnel() {
 }
 
 # ---------------------------------------------------------------------------
-# Despacha para a função correspondente
+# Despacha para cada ambiente selecionado (em ordem 1 → 2 → 3 → 4)
 # ---------------------------------------------------------------------------
 
-case "$DEPLOY_MODE" in
-  1) _deploy_claude_code ;;
-  2) _deploy_claude_desktop ;;
-  3) _deploy_http_local ;;
-  4) _deploy_http_tunnel ;;
-esac
+for MODE in 1 2 3 4; do
+  case ",$DEPLOY_MODES," in
+    *",$MODE,"*)
+      case "$MODE" in
+        1) _deploy_claude_code ;;
+        2) _deploy_claude_desktop ;;
+        3) _deploy_http_local ;;
+        4) _deploy_http_tunnel ;;
+      esac
+      ;;
+  esac
+done
 
 echo ""
 echo "==> instalação concluída."
