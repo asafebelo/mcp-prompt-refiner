@@ -250,8 +250,7 @@ O script detecta o sistema e exibe o bloco JSON correto. Copie-o e adicione ao a
 
 | Sistema | Caminho do arquivo |
 |---|---|
-| Windows (Store) | `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\claude_desktop_config.json` |
-| Windows (instalador direto) | `%APPDATA%\Claude\claude_desktop_config.json` |
+| Windows | `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\claude_desktop_config.json` |
 | macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
 | Linux | `~/.config/Claude/claude_desktop_config.json` |
 
