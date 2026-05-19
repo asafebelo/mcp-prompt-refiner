@@ -353,17 +353,26 @@ Use esta opção para expor o servidor publicamente com URL fixa. Necessário pa
 
 **2. Configure as variáveis de ambiente**
 
+A forma mais simples é usar o instalador — ele guia o preenchimento interativamente e gera o `MCP_AUTH_TOKEN` automaticamente:
+
+```bash
+./install.sh  # → opção 5
+```
+
+Ou configure manualmente:
+
 ```bash
 cp .env.example .env
-# Edite .env e preencha OPENROUTER_API_KEY e CLOUDFLARE_TUNNEL_TOKEN
+# Preencha OPENROUTER_API_KEY e CLOUDFLARE_TUNNEL_TOKEN
+# Gere um MCP_AUTH_TOKEN seguro:
+openssl rand -hex 32
+# Cole o resultado como valor de MCP_AUTH_TOKEN no .env
 ```
 
 **3. Suba os containers**
 
 ```bash
 docker compose up -d
-# ou via instalador:
-./install.sh  # → opção 5
 ```
 
 **4. Verifique o tunnel**
@@ -439,7 +448,7 @@ Os arquivos `projects/*.md` são montados como volume em `./projects/` — persi
 | `CLOUDFLARE_TUNNEL_TOKEN` | — | Token do Named Tunnel (deploy Docker) |
 | `MCP_PORT` | `8000` | Porta do servidor HTTP |
 | `MCP_HOST` | `0.0.0.0` | Host do servidor HTTP |
-| `MCP_AUTH_TOKEN` | (vazio) | Token Bearer para autenticação no endpoint `/mcp`. Se definido, clientes devem enviar `Authorization: Bearer <token>`. Se vazio, o servidor opera sem auth. |
+| `MCP_AUTH_TOKEN` | (vazio) | Token Bearer para autenticação no endpoint `/mcp`. Gere com `openssl rand -hex 32`. Se vazio, o servidor opera sem auth. |
 
 ### Personalizar a cadeia de modelos
 

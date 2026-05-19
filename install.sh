@@ -370,35 +370,83 @@ _deploy_docker_compose() {
   fi
 
   # Garante .env a partir do .env.example
-  if [ ! -f "$SCRIPT_DIR/.env" ]; then
-    if [ -f "$SCRIPT_DIR/.env.example" ]; then
-      cp "$SCRIPT_DIR/.env.example" "$SCRIPT_DIR/.env"
-      echo "    .env criado a partir de .env.example"
-    fi
-  else
-    echo "    .env já existe — mantido"
+  ENV_FILE="$SCRIPT_DIR/.env"
+  if [ ! -f "$ENV_FILE" ]; then
+    cp "$SCRIPT_DIR/.env.example" "$ENV_FILE"
+    echo "    .env criado a partir de .env.example"
   fi
 
-  echo ""
-  echo "ANTES DE CONTINUAR, verifique se .env está preenchido:"
-  echo "  OPENROUTER_API_KEY  — sua chave da OpenRouter"
-  echo "  CLOUDFLARE_TUNNEL_TOKEN — token do Named Tunnel criado no Cloudflare Zero Trust"
-  echo ""
-  echo "  No dashboard do Cloudflare (https://one.dash.cloudflare.com):"
-  echo "    Zero Trust → Networks → Tunnels → Create a tunnel"
-  echo "    Configure o hostname público apontando para: http://mcp-server:8000"
-  echo ""
+  # Lê valor atual de uma variável no .env (ignora linhas comentadas)
+  _get_env_val() {
+    grep -E "^$1=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2-
+  }
 
-  printf "O .env está preenchido com os tokens? [s/N]: "
-  read -r ENV_READY
-  case "$ENV_READY" in
-    [sS]|[yY])
-      ;;
-    *)
-      echo "    Preencha o .env e rode './install.sh' novamente com a opção 5."
-      return 0
-      ;;
-  esac
+  # Define ou atualiza variável no .env
+  _set_env_val() {
+    local key="$1" val="$2"
+    if grep -qE "^#*[[:space:]]*${key}=" "$ENV_FILE" 2>/dev/null; then
+      sed -i "s|^#*[[:space:]]*${key}=.*|${key}=${val}|" "$ENV_FILE"
+    else
+      echo "${key}=${val}" >> "$ENV_FILE"
+    fi
+  }
+
+  # --- OPENROUTER_API_KEY ---
+  CURRENT_OR=$(_get_env_val "OPENROUTER_API_KEY")
+  if [ -z "$CURRENT_OR" ] || [ "$CURRENT_OR" = "your_openrouter_key_here" ]; then
+    echo "Chave da OpenRouter (https://openrouter.ai/keys):"
+    printf "  Cole aqui: "
+    read -r OR_KEY
+    [ -n "$OR_KEY" ] && _set_env_val "OPENROUTER_API_KEY" "$OR_KEY" && echo "    ✓ OPENROUTER_API_KEY salva"
+  else
+    echo "    OPENROUTER_API_KEY já configurada — mantida"
+  fi
+
+  # --- CLOUDFLARE_TUNNEL_TOKEN ---
+  CURRENT_CF=$(_get_env_val "CLOUDFLARE_TUNNEL_TOKEN")
+  if [ -z "$CURRENT_CF" ] || [ "$CURRENT_CF" = "your_tunnel_token_here" ]; then
+    echo ""
+    echo "Token do Cloudflare Named Tunnel"
+    echo "  (one.dash.cloudflare.com → Zero Trust → Networks → Tunnels → Create a tunnel)"
+    echo "  Configure o hostname público com Service: http://mcp-server:8000"
+    printf "  Cole o token aqui: "
+    read -r CF_TOKEN
+    [ -n "$CF_TOKEN" ] && _set_env_val "CLOUDFLARE_TUNNEL_TOKEN" "$CF_TOKEN" && echo "    ✓ CLOUDFLARE_TUNNEL_TOKEN salva"
+  else
+    echo "    CLOUDFLARE_TUNNEL_TOKEN já configurada — mantida"
+  fi
+
+  # --- MCP_AUTH_TOKEN ---
+  CURRENT_AUTH=$(_get_env_val "MCP_AUTH_TOKEN")
+  if [ -z "$CURRENT_AUTH" ]; then
+    echo ""
+    echo "MCP_AUTH_TOKEN protege o endpoint /mcp de acesso não autorizado."
+    printf "  Gerar token seguro automaticamente? [S/n]: "
+    read -r GEN_TOKEN
+    case "$GEN_TOKEN" in
+      [nN])
+        printf "  Digite o token: "
+        read -r NEW_AUTH_TOKEN
+        ;;
+      *)
+        if command -v openssl >/dev/null 2>&1; then
+          NEW_AUTH_TOKEN=$(openssl rand -hex 32)
+        else
+          NEW_AUTH_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+        fi
+        echo "    Token gerado: $NEW_AUTH_TOKEN"
+        ;;
+    esac
+    if [ -n "$NEW_AUTH_TOKEN" ]; then
+      _set_env_val "MCP_AUTH_TOKEN" "$NEW_AUTH_TOKEN"
+      echo "    ✓ MCP_AUTH_TOKEN salva"
+      echo ""
+      echo "    IMPORTANTE: guarde este token — você precisará dele ao configurar"
+      echo "    os clientes de IA (header: Authorization: Bearer <token>)."
+    fi
+  else
+    echo "    MCP_AUTH_TOKEN já configurada — mantida"
+  fi
 
   echo ""
   echo "==> Iniciando containers..."
@@ -418,6 +466,7 @@ _deploy_docker_compose() {
   echo "  1. Aguarde o tunnel ficar ativo: $COMPOSE_CMD logs -f cloudflared"
   echo "  2. Anote a URL pública configurada no Cloudflare (seu domínio/subdomínio)."
   echo "  3. Configure o cliente de IA usando: https://seu-dominio/mcp"
+  echo "     (com header Authorization: Bearer <token> se MCP_AUTH_TOKEN estiver ativo)"
 }
 
 # ---------------------------------------------------------------------------
