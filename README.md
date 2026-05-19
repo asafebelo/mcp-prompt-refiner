@@ -1,6 +1,6 @@
 # mcp-prompt-refiner
 
-Servidor MCP que refina suas intenções em prompts estruturados e persiste o contexto de cada projeto entre sessões do Claude Code.
+Servidor MCP que refina suas intenções em prompts estruturados e persiste o contexto de cada projeto entre sessões — compatível com Claude Code, Claude Desktop, ChatGPT, Cursor e outros clientes MCP.
 
 ---
 
@@ -75,7 +75,6 @@ Cada projeto ganha um arquivo `projects/{nome}.md` com descrição, decisões t�
 ## Pré-requisitos
 
 - Python 3.11+
-- [Claude Code](https://claude.ai/code) instalado
 - Conta na [OpenRouter](https://openrouter.ai) com créditos (uso mínimo — modelos gratuitos ou de baixo custo)
 
 ---
@@ -98,8 +97,6 @@ cd mcp-prompt-refiner
 
 ## Configuração
 
-### 1. Chave da OpenRouter
-
 Abra `config.json` (criado pelo `install.sh` a partir do `config.example.json`) e substitua o placeholder pela sua chave obtida em [openrouter.ai/keys](https://openrouter.ai/keys):
 
 ```json
@@ -121,49 +118,6 @@ Abra `config.json` (criado pelo `install.sh` a partir do `config.example.json`) 
 ```
 
 > **Alternativa segura:** defina a variável de ambiente `OPENROUTER_API_KEY` em vez de escrever a chave no arquivo. A env var tem prioridade sobre `config.json`.
-
-### 2. Registro no Claude Code
-
-O `install.sh` registra automaticamente. Para registrar manualmente com escopo de usuário (disponível em todos os projetos):
-
-```bash
-claude mcp add --scope user mcp-prompt-refiner \
-  /caminho/para/mcp-prompt-refiner/.venv/bin/python \
-  /caminho/para/mcp-prompt-refiner/server.py
-
-# Verificar
-claude mcp get mcp-prompt-refiner
-```
-
-### 3. Reinicie o Claude Code
-
-O servidor só conecta ao iniciar uma nova sessão.
-
-### 4. (Opcional) Hook de auto-save
-
-Ative o hook para que o `save_context` seja chamado automaticamente ao final de cada sessão, sem você precisar pedir:
-
-```bash
-# Adicione ao ~/.claude/settings.json
-{
-  "hooks": {
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash /caminho/para/mcp-prompt-refiner/scripts/auto_save_hook.sh"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-O script `scripts/auto_save_hook.sh` já está no repositório. Troque `/caminho/para/mcp-prompt-refiner` pelo caminho real onde você clonou o projeto.
-
-**Como funciona:** ao parar, o Claude Code executa o hook. Se `save_context` ainda não foi chamado na sessão, o hook injeta uma instrução para que o Claude o chame antes de encerrar. Na segunda parada (após salvar), a variável `CLAUDE_STOP_HOOK_ACTIVE=1` impede nova injeção, evitando loop infinito.
 
 ---
 
@@ -210,14 +164,12 @@ O script `scripts/auto_save_hook.sh` já está no repositório. Troque `/caminho
 
 ### Claude Code (CLI)
 
-**MCP (Model Context Protocol)** é o protocolo que permite ao Claude Code se comunicar com servidores externos de ferramentas — como este.
-
 #### Pré-requisitos
 - [Claude Code](https://claude.ai/code) instalado (`claude --version` deve funcionar)
 - Python 3.11+ e o projeto clonado com `.venv` criado (`./install.sh`)
 - Chave da [OpenRouter](https://openrouter.ai/keys) configurada em `config.json` ou via `OPENROUTER_API_KEY`
 
-#### Como configurar
+#### Registrando o servidor
 
 Execute o instalador e escolha a opção **1**:
 
@@ -239,9 +191,39 @@ claude mcp get mcp-prompt-refiner
 
 O flag `--scope user` torna o servidor disponível em **todos os seus projetos**, sem precisar registrar novamente a cada clone.
 
+#### Reiniciando
+
+O servidor conecta ao iniciar uma nova sessão. Após registrar, reinicie o Claude Code.
+
+#### (Opcional) Hook de auto-save
+
+Ative o hook para que `save_context` seja chamado automaticamente ao final de cada sessão, sem você precisar pedir:
+
+```json
+// Adicione ao ~/.claude/settings.json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /caminho/para/mcp-prompt-refiner/scripts/auto_save_hook.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Troque `/caminho/para/mcp-prompt-refiner` pelo caminho real onde você clonou o projeto.
+
+**Como funciona:** ao parar, o Claude Code executa o hook. Se `save_context` ainda não foi chamado na sessão, o hook injeta uma instrução para que o Claude o chame antes de encerrar. Na segunda parada (após salvar), `CLAUDE_STOP_HOOK_ACTIVE=1` impede nova injeção, evitando loop infinito.
+
 #### Como usar no chat
 
-Reinicie o Claude Code. As quatro ferramentas aparecem automaticamente:
+As quatro ferramentas aparecem automaticamente:
 
 ```
 use o refine_prompt para: quero adicionar autenticação JWT no meu FastAPI
@@ -437,22 +419,22 @@ docker compose down                 # encerrar tudo
 docker compose up -d --build        # recriar após atualização
 ```
 
+Os arquivos `projects/*.md` são montados como volume em `./projects/` — persistem entre restarts e ficam acessíveis no host.
+
+---
+
+## Configuração avançada
+
 ### Variáveis de ambiente
 
 | Variável | Padrão | Descrição |
 |---|---|---|
 | `OPENROUTER_API_KEY` | — | Chave da OpenRouter (prioridade sobre `config.json`) |
-| `CLOUDFLARE_TUNNEL_TOKEN` | — | Token do Named Tunnel |
+| `CLOUDFLARE_TUNNEL_TOKEN` | — | Token do Named Tunnel (deploy Docker) |
 | `MCP_PORT` | `8000` | Porta do servidor HTTP |
 | `MCP_HOST` | `0.0.0.0` | Host do servidor HTTP |
 
-### Persistência de contexto
-
-Os arquivos `projects/*.md` são montados como volume em `./projects/` — persistem entre restarts e ficam acessíveis no host.
-
----
-
-## Personalizar a cadeia de modelos
+### Personalizar a cadeia de modelos
 
 Edite o campo `models` em `config.json`. A ordem importa — o primeiro modelo disponível é usado:
 
