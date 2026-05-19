@@ -139,6 +139,32 @@ claude mcp get mcp-prompt-refiner
 
 O servidor só conecta ao iniciar uma nova sessão.
 
+### 4. (Opcional) Hook de auto-save
+
+Ative o hook para que o `save_context` seja chamado automaticamente ao final de cada sessão, sem você precisar pedir:
+
+```bash
+# Adicione ao ~/.claude/settings.json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /caminho/para/mcp-prompt-refiner/scripts/auto_save_hook.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+O script `scripts/auto_save_hook.sh` já está no repositório. Troque `/caminho/para/mcp-prompt-refiner` pelo caminho real onde você clonou o projeto.
+
+**Como funciona:** ao parar, o Claude Code executa o hook. Se `save_context` ainda não foi chamado na sessão, o hook injeta uma instrução para que o Claude o chame antes de encerrar. Na segunda parada (após salvar), a variável `CLAUDE_STOP_HOOK_ACTIVE=1` impede nova injeção, evitando loop infinito.
+
 ---
 
 ## Passo a passo de uso
@@ -151,7 +177,7 @@ O servidor só conecta ao iniciar uma nova sessão.
    > "use o refine_prompt para: quero adicionar autenticação JWT no meu servidor FastAPI"
 
 3. O Claude mostra o prompt estruturado e pede confirmação antes de executar
-4. Ao finalizar a sessão, salve o contexto:
+4. Ao finalizar a sessão, o contexto é salvo automaticamente (se o hook estiver ativo), ou manualmente:
 
    > "salva o contexto do projeto meu-projeto com o que foi feito hoje"
 
