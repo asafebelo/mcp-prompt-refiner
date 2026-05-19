@@ -1,7 +1,10 @@
 # --- Segredos / configuração local ---
 config.json
 .env
-.env.*
+.env.local
+.env.production
+.env.staging
+cloudflared.deb
 
 # --- Dados de runtime (contexto persistente por projeto) ---
 # Cada usuário tem seus próprios .md; não versionar.

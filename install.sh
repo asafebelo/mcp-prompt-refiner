@@ -73,18 +73,19 @@ echo "║  1) stdio — Claude Code (recomendado para dev local)          ║"
 echo "║  2) stdio — Claude Desktop (WSL / Linux / macOS)              ║"
 echo "║  3) HTTP local (Claude Web Connector / ChatGPT)               ║"
 echo "║  4) HTTP + tunnel público (Cloudflare / ngrok)                ║"
+echo "║  5) Docker Compose + Cloudflare Named Tunnel (self-host)      ║"
 echo "╠════════════════════════════════════════════════════════════════╣"
 echo "║  Você pode configurar múltiplos ambientes de uma vez.         ║"
-echo "║  Exemplos: '1'  →  apenas Claude Code                        ║"
+echo "║  Exemplos: '1'    →  apenas Claude Code                       ║"
 echo "║            '1,2'  →  Claude Code + Claude Desktop             ║"
-echo "║            '1,2,4'  →  Code + Desktop + tunnel público        ║"
+echo "║            '5'    →  self-host via Docker + Cloudflare        ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 echo ""
 
 # Valida e normaliza entrada com seleção múltipla (ex: "1,2,3" ou "1 2 3")
 DEPLOY_MODES=""
 while true; do
-  printf "Escolha os modos [1-4, separados por vírgula]: "
+  printf "Escolha os modos [1-5, separados por vírgula]: "
   read -r RAW_INPUT
 
   # Normaliza: troca espaços por vírgulas, remove duplicatas, ordena
@@ -96,7 +97,7 @@ while true; do
   for SEL in "${SELECTIONS[@]}"; do
     SEL="$(echo "$SEL" | tr -d '[:space:]')"
     case "$SEL" in
-      1|2|3|4)
+      1|2|3|4|5)
         # Adiciona apenas se ainda não estiver na lista
         case ",$DEPLOY_MODES," in
           *",$SEL,"*) ;;
@@ -106,7 +107,7 @@ while true; do
       "")
         ;;
       *)
-        echo "  Valor inválido: '$SEL'. Use apenas os números 1, 2, 3 ou 4."
+        echo "  Valor inválido: '$SEL'. Use apenas os números 1, 2, 3, 4 ou 5."
         VALID=0
         break
         ;;
@@ -116,7 +117,7 @@ while true; do
   if [ "$VALID" -eq 1 ] && [ -n "$DEPLOY_MODES" ]; then
     break
   elif [ "$VALID" -eq 1 ]; then
-    echo "  Entrada vazia. Digite ao menos um número (1-4)."
+    echo "  Entrada vazia. Digite ao menos um número (1-5)."
   fi
 done
 
@@ -342,10 +343,88 @@ _deploy_http_tunnel() {
 }
 
 # ---------------------------------------------------------------------------
-# Despacha para cada ambiente selecionado (em ordem 1 → 2 → 3 → 4)
+# Opção 5 — Docker Compose + Cloudflare Named Tunnel
 # ---------------------------------------------------------------------------
 
-for MODE in 1 2 3 4; do
+_deploy_docker_compose() {
+  echo ""
+  echo "==> Deploy via Docker Compose + Cloudflare Named Tunnel"
+  echo ""
+
+  # Verifica Docker
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "ERRO: 'docker' não encontrado no PATH." >&2
+    echo "      Instale o Docker Engine: https://docs.docker.com/engine/install/" >&2
+    return 1
+  fi
+
+  # Verifica Docker Compose (plugin v2 ou standalone)
+  if docker compose version >/dev/null 2>&1; then
+    COMPOSE_CMD="docker compose"
+  elif command -v docker-compose >/dev/null 2>&1; then
+    COMPOSE_CMD="docker-compose"
+  else
+    echo "ERRO: Docker Compose não encontrado." >&2
+    echo "      Instale o plugin: https://docs.docker.com/compose/install/" >&2
+    return 1
+  fi
+
+  # Garante .env a partir do .env.example
+  if [ ! -f "$SCRIPT_DIR/.env" ]; then
+    if [ -f "$SCRIPT_DIR/.env.example" ]; then
+      cp "$SCRIPT_DIR/.env.example" "$SCRIPT_DIR/.env"
+      echo "    .env criado a partir de .env.example"
+    fi
+  else
+    echo "    .env já existe — mantido"
+  fi
+
+  echo ""
+  echo "ANTES DE CONTINUAR, verifique se .env está preenchido:"
+  echo "  OPENROUTER_API_KEY  — sua chave da OpenRouter"
+  echo "  CLOUDFLARE_TUNNEL_TOKEN — token do Named Tunnel criado no Cloudflare Zero Trust"
+  echo ""
+  echo "  No dashboard do Cloudflare (https://one.dash.cloudflare.com):"
+  echo "    Zero Trust → Networks → Tunnels → Create a tunnel"
+  echo "    Configure o hostname público apontando para: http://mcp-server:8000"
+  echo ""
+
+  printf "O .env está preenchido com os tokens? [s/N]: "
+  read -r ENV_READY
+  case "$ENV_READY" in
+    [sS]|[yY])
+      ;;
+    *)
+      echo "    Preencha o .env e rode './install.sh' novamente com a opção 5."
+      return 0
+      ;;
+  esac
+
+  echo ""
+  echo "==> Iniciando containers..."
+  cd "$SCRIPT_DIR"
+  $COMPOSE_CMD up -d --build
+
+  echo ""
+  echo "✓ Containers iniciados."
+  echo ""
+  echo "Comandos úteis:"
+  echo "  $COMPOSE_CMD logs -f mcp-server   # acompanhar logs do servidor"
+  echo "  $COMPOSE_CMD logs -f cloudflared  # verificar status do tunnel"
+  echo "  $COMPOSE_CMD ps                   # ver estado dos serviços"
+  echo "  $COMPOSE_CMD down                 # encerrar tudo"
+  echo ""
+  echo "PRÓXIMOS PASSOS:"
+  echo "  1. Aguarde o tunnel ficar ativo: $COMPOSE_CMD logs -f cloudflared"
+  echo "  2. Anote a URL pública configurada no Cloudflare (seu domínio/subdomínio)."
+  echo "  3. Configure o cliente de IA usando: https://seu-dominio/mcp"
+}
+
+# ---------------------------------------------------------------------------
+# Despacha para cada ambiente selecionado (em ordem 1 → 2 → 3 → 4 → 5)
+# ---------------------------------------------------------------------------
+
+for MODE in 1 2 3 4 5; do
   case ",$DEPLOY_MODES," in
     *",$MODE,"*)
       case "$MODE" in
@@ -353,6 +432,7 @@ for MODE in 1 2 3 4; do
         2) _deploy_claude_desktop ;;
         3) _deploy_http_local ;;
         4) _deploy_http_tunnel ;;
+        5) _deploy_docker_compose ;;
       esac
       ;;
   esac

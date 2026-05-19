@@ -445,6 +445,80 @@ Consulte a [documentação oficial do Codex CLI](https://github.com/openai/codex
 | `MCP_HOST` | `0.0.0.0` | Host para modo HTTP |
 | `MCP_PORT` | `8000` | Porta para modo HTTP |
 | `OPENROUTER_API_KEY` | — | Chave da OpenRouter (prioridade sobre `config.json`) |
+| `CLOUDFLARE_TUNNEL_TOKEN` | — | Token do Named Tunnel (usado no deploy Docker) |
+
+---
+
+## Deploy via Docker Compose + Cloudflare Named Tunnel
+
+Use esta opção se quiser hospedar o servidor e compartilhá-lo com outros usuários ou acessá-lo de qualquer cliente sem configuração local. Requer Docker e uma conta Cloudflare.
+
+### Pré-requisitos
+
+- [Docker Engine](https://docs.docker.com/engine/install/) instalado
+- Conta no [Cloudflare](https://cloudflare.com) com um domínio gerenciado (pode ser gratuito)
+- Chave da [OpenRouter](https://openrouter.ai/keys)
+
+### Passo a passo
+
+**1. Crie o Named Tunnel no Cloudflare**
+
+1. Acesse [one.dash.cloudflare.com](https://one.dash.cloudflare.com) → **Zero Trust → Networks → Tunnels**
+2. Clique em **Create a tunnel** → escolha **Cloudflared**
+3. Dê um nome (ex: `mcp-refiner`) e clique em **Save tunnel**
+4. Copie o **token** exibido na tela de instalação
+5. Em **Public Hostname**, configure:
+   - **Subdomain:** ex `mcp` (resultará em `mcp.seudominio.com`)
+   - **Domain:** seu domínio
+   - **Service:** `http://mcp-server:8000`
+
+> O endereço `http://mcp-server:8000` funciona porque o `cloudflared` e o servidor rodam na mesma rede Docker interna. Use exatamente este valor no dashboard.
+
+**2. Configure as variáveis de ambiente**
+
+```bash
+cp .env.example .env
+# Edite .env e preencha OPENROUTER_API_KEY e CLOUDFLARE_TUNNEL_TOKEN
+```
+
+**3. Suba os containers**
+
+```bash
+docker compose up -d
+```
+
+Ou use o `install.sh` e escolha a opção **5**.
+
+**4. Verifique o tunnel**
+
+```bash
+docker compose logs -f cloudflared
+# Aguarde: "Registered tunnel connection"
+```
+
+**5. Configure o cliente de IA**
+
+Use a URL pública que você configurou no Cloudflare:
+
+```
+https://mcp.seudominio.com/mcp
+```
+
+Funciona com todos os clientes: Claude Code (`claude mcp add --url`), Claude Desktop (type: sse), Claude Web Connector, ChatGPT e Codex CLI.
+
+### Comandos úteis
+
+```bash
+docker compose logs -f mcp-server   # logs do servidor MCP
+docker compose logs -f cloudflared  # status do tunnel
+docker compose ps                   # estado dos serviços
+docker compose down                 # encerrar tudo
+docker compose up -d --build        # recriar após atualização
+```
+
+### Persistência de contexto
+
+Os arquivos `projects/*.md` são montados como volume em `./projects/` na raiz do repositório — persistem entre restarts e ficam acessíveis no host.
 
 ---
 
@@ -475,6 +549,11 @@ mcp-prompt-refiner/
 │   ├── context.py        # save_context, load_context, list_projects
 │   └── openrouter.py     # Cliente OpenRouter com cadeia de modelos
 ├── projects/             # Um .md por projeto (local, não vai ao git)
+├── scripts/
+│   └── auto_save_hook.sh # Stop hook do Claude Code para auto-save de contexto
+├── Dockerfile            # Imagem Python para deploy em container
+├── docker-compose.yml    # Orquestra mcp-server + cloudflared
+├── .env.example          # Template de variáveis de ambiente
 ├── config.json           # Sua configuração com a chave (não vai ao git)
 ├── config.example.json   # Template versionado sem segredos
 ├── requirements.txt
