@@ -201,12 +201,10 @@ O script `scripts/auto_save_hook.sh` já está no repositório. Troque `/caminho
 
 ## Conectando o mcp-prompt-refiner aos clientes de IA
 
-O servidor opera em dois modos de transporte:
-
-- **stdio** — comunicação via stdin/stdout, sem rede. Usado por Claude Code, Claude Desktop, Cursor, Zed e Windsurf.
-- **HTTP** — expõe o endpoint `/mcp` via HTTP. Necessário para Claude Web Connector, ChatGPT e Codex CLI (requer URL HTTPS pública).
-
-O script `install.sh` guia você pelo modo correto com um menu interativo. As seções abaixo explicam o processo completo para cada cliente.
+| Clientes | Modo | Como configurar |
+|---|---|---|
+| Claude Code, Claude Desktop, Cursor, Zed, Windsurf | stdio (local) | Seções abaixo |
+| Claude Web, ChatGPT, Codex CLI | HTTP público | [Deploy via Docker Compose](#deploy-via-docker-compose--cloudflare-named-tunnel) |
 
 ---
 
@@ -346,117 +344,14 @@ Consulte a documentação de cada editor para o caminho exato do arquivo de conf
 
 ---
 
-### Claude Web Connector
-
-O Claude Web permite adicionar servidores MCP externos via **Configurações → Conectores personalizados**. O servidor precisa estar acessível via **HTTPS público**.
-
-#### Pré-requisitos
-- Conta Claude Pro ou Team (conectores personalizados requerem plano pago)
-- Servidor rodando em modo HTTP acessível publicamente
-- URL HTTPS válida apontando para o endpoint `/mcp` — use [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) ou [ngrok](https://ngrok.com)
-
-#### Como iniciar o servidor
-
-```bash
-# Ative o venv
-source .venv/bin/activate
-
-# Inicie em modo HTTP
-python server.py --mode http --host 0.0.0.0 --port 8000
-```
-
-Ou via variável de ambiente:
-
-```bash
-MCP_MODE=http MCP_PORT=8000 python server.py
-```
-
-#### Expondo com Cloudflare Tunnel (recomendado para homelab)
-
-```bash
-# Em outro terminal, com cloudflared instalado:
-cloudflared tunnel --url http://localhost:8000
-# → URL gerada: https://xxxx.trycloudflare.com
-```
-
-Para uma URL permanente em um domínio próprio, configure um [Named Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/get-started/) no painel da Cloudflare.
-
-#### Expondo com ngrok (dev / testes rápidos)
-
-```bash
-ngrok http 8000
-# → URL gerada: https://xxxx.ngrok.app
-```
-
-#### Configurando no Claude Web
-
-1. Acesse [claude.ai](https://claude.ai) → **Configurações** → **Conectores**
-2. Clique em **Adicionar conector**
-3. Cole a URL pública no formato: `https://xxxx.trycloudflare.com/mcp`
-4. Salve e inicie uma nova conversa — as ferramentas estarão disponíveis
-
-#### Solução de problemas
-- **Erro de conexão:** confirme que o servidor está rodando (`curl https://sua-url/mcp -X POST`) e que o tunnel está ativo.
-- **Tunnel caiu:** o Claude Web desconecta automaticamente quando o tunnel encerra. Reinicie o tunnel e reconecte o conector.
-
----
-
-### ChatGPT (Web, Desktop e Codex CLI)
-
-O ChatGPT suporta servidores MCP via **Configurações → Conectores**. O fluxo é idêntico ao Claude Web: servidor HTTP + URL HTTPS pública.
-
-#### Pré-requisitos
-- Conta ChatGPT Plus, Pro ou Team
-- Servidor rodando em modo HTTP (mesmo processo descrito na seção Claude Web acima)
-- URL HTTPS pública via Cloudflare Tunnel ou ngrok
-
-#### Configurando no ChatGPT Web / Desktop
-
-1. Abra o ChatGPT → **Configurações** → **Conectores** (ou **MCP Servers** dependendo da versão)
-2. Clique em **Adicionar servidor MCP**
-3. Cole a URL: `https://sua-url-publica/mcp`
-4. Confirme e inicie uma nova conversa
-
-> O ChatGPT Desktop (aplicativo nativo) segue o mesmo fluxo da versão web para conectores remotos.
-
-#### Configurando no Codex CLI
-
-O [Codex CLI](https://github.com/openai/codex) da OpenAI suporta MCP via arquivo de configuração:
-
-```bash
-# ~/.codex/config.toml (ou conforme documentação da versão instalada)
-[mcp_servers.mcp-prompt-refiner]
-url = "https://sua-url-publica/mcp"
-```
-
-Consulte a [documentação oficial do Codex CLI](https://github.com/openai/codex) para a versão exata do formato de configuração.
-
-#### Solução de problemas
-- **Ferramentas não aparecem:** inicie uma **nova conversa** após adicionar o conector — conversas existentes não recarregam os servidores MCP.
-- **Erro 401/403:** o endpoint `/mcp` deste servidor não requer autenticação por padrão. Se aparecer erro de auth, verifique se há proxy ou firewall na frente do tunnel.
-
----
-
-### Referência rápida: variáveis de ambiente
-
-| Variável | Padrão | Descrição |
-|---|---|---|
-| `MCP_MODE` | `stdio` | Modo de transporte: `stdio` ou `http` |
-| `MCP_HOST` | `0.0.0.0` | Host para modo HTTP |
-| `MCP_PORT` | `8000` | Porta para modo HTTP |
-| `OPENROUTER_API_KEY` | — | Chave da OpenRouter (prioridade sobre `config.json`) |
-| `CLOUDFLARE_TUNNEL_TOKEN` | — | Token do Named Tunnel (usado no deploy Docker) |
-
----
-
 ## Deploy via Docker Compose + Cloudflare Named Tunnel
 
-Use esta opção se quiser hospedar o servidor e compartilhá-lo com outros usuários ou acessá-lo de qualquer cliente sem configuração local. Requer Docker e uma conta Cloudflare.
+Use esta opção para expor o servidor publicamente com URL fixa. Necessário para Claude Web, ChatGPT e Codex CLI — e também funciona para Claude Code e Claude Desktop via URL, sem instalação local do Python.
 
 ### Pré-requisitos
 
 - [Docker Engine](https://docs.docker.com/engine/install/) instalado
-- Conta no [Cloudflare](https://cloudflare.com) com um domínio gerenciado (pode ser gratuito)
+- Conta no [Cloudflare](https://cloudflare.com) com um domínio gerenciado (gratuito)
 - Chave da [OpenRouter](https://openrouter.ai/keys)
 
 ### Passo a passo
@@ -472,7 +367,7 @@ Use esta opção se quiser hospedar o servidor e compartilhá-lo com outros usu�
    - **Domain:** seu domínio
    - **Service:** `http://mcp-server:8000`
 
-> O endereço `http://mcp-server:8000` funciona porque o `cloudflared` e o servidor rodam na mesma rede Docker interna. Use exatamente este valor no dashboard.
+> `http://mcp-server:8000` funciona porque `cloudflared` e o servidor rodam na mesma rede Docker interna. Use exatamente este valor no dashboard.
 
 **2. Configure as variáveis de ambiente**
 
@@ -485,9 +380,9 @@ cp .env.example .env
 
 ```bash
 docker compose up -d
+# ou via instalador:
+./install.sh  # → opção 5
 ```
-
-Ou use o `install.sh` e escolha a opção **5**.
 
 **4. Verifique o tunnel**
 
@@ -496,15 +391,41 @@ docker compose logs -f cloudflared
 # Aguarde: "Registered tunnel connection"
 ```
 
-**5. Configure o cliente de IA**
+### Conectando os clientes ao servidor HTTP
 
-Use a URL pública que você configurou no Cloudflare:
+Com o tunnel ativo, use `https://mcp.seudominio.com/mcp` em qualquer cliente:
 
+**Claude Web Connector** (requer plano Pro ou Team)
+1. [claude.ai](https://claude.ai) → **Configurações → Conectores → Adicionar conector**
+2. Cole a URL e salve. Abra uma nova conversa.
+
+**ChatGPT Web e Desktop** (requer Plus, Pro ou Team)
+1. ChatGPT → **Configurações → Conectores → Adicionar servidor MCP**
+2. Cole a URL e confirme. Abra uma nova conversa.
+
+**Codex CLI**
+```toml
+# ~/.codex/config.toml
+[mcp_servers.mcp-prompt-refiner]
+url = "https://mcp.seudominio.com/mcp"
 ```
-https://mcp.seudominio.com/mcp
+
+**Claude Code via URL** (alternativa ao stdio local)
+```bash
+claude mcp add --scope user --url https://mcp.seudominio.com/mcp mcp-prompt-refiner
 ```
 
-Funciona com todos os clientes: Claude Code (`claude mcp add --url`), Claude Desktop (type: sse), Claude Web Connector, ChatGPT e Codex CLI.
+**Claude Desktop via URL**
+```json
+{
+  "mcpServers": {
+    "mcp-prompt-refiner": {
+      "type": "sse",
+      "url": "https://mcp.seudominio.com/mcp"
+    }
+  }
+}
+```
 
 ### Comandos úteis
 
@@ -516,9 +437,18 @@ docker compose down                 # encerrar tudo
 docker compose up -d --build        # recriar após atualização
 ```
 
+### Variáveis de ambiente
+
+| Variável | Padrão | Descrição |
+|---|---|---|
+| `OPENROUTER_API_KEY` | — | Chave da OpenRouter (prioridade sobre `config.json`) |
+| `CLOUDFLARE_TUNNEL_TOKEN` | — | Token do Named Tunnel |
+| `MCP_PORT` | `8000` | Porta do servidor HTTP |
+| `MCP_HOST` | `0.0.0.0` | Host do servidor HTTP |
+
 ### Persistência de contexto
 
-Os arquivos `projects/*.md` são montados como volume em `./projects/` na raiz do repositório — persistem entre restarts e ficam acessíveis no host.
+Os arquivos `projects/*.md` são montados como volume em `./projects/` — persistem entre restarts e ficam acessíveis no host.
 
 ---
 
