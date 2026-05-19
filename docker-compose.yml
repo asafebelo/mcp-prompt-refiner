@@ -5,13 +5,14 @@ services:
     environment:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - MCP_PORT=${MCP_PORT:-8000}
+      - MCP_AUTH_TOKEN=${MCP_AUTH_TOKEN:-}
     volumes:
       - ./projects:/app/projects
       - ./config.json:/app/config.json:ro
     networks:
       - internal
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/mcp')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
       timeout: 5s
       retries: 3

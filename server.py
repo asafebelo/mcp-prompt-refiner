@@ -175,8 +175,12 @@ def build_http_app():
     """Constrói e retorna o app ASGI com transporte Streamable HTTP no endpoint /mcp."""
     import contextlib
     from starlette.middleware.cors import CORSMiddleware
-    from starlette.responses import PlainTextResponse
+    from starlette.responses import JSONResponse, PlainTextResponse
     from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+
+    auth_token = os.environ.get("MCP_AUTH_TOKEN", "").strip()
+    if auth_token:
+        print("[mcp-prompt-refiner] autenticação Bearer habilitada", file=sys.stderr)
 
     session_manager = StreamableHTTPSessionManager(
         app=app,
@@ -192,7 +196,6 @@ def build_http_app():
     async def router(scope, receive, send):
         """Roteia /mcp para o session_manager; demais paths retornam 404."""
         if scope["type"] == "lifespan":
-            # Repassa o lifespan para o session_manager iniciar corretamente
             async with session_manager.run():
                 message = await receive()
                 if message["type"] == "lifespan.startup":
@@ -203,11 +206,29 @@ def build_http_app():
             return
 
         path = scope.get("path", "")
+
+        # Endpoint de health check — sem autenticação (usado pelo Docker)
+        if path == "/health":
+            await PlainTextResponse("ok")(scope, receive, send)
+            return
+
+        # Autenticação Bearer opcional para /mcp
+        if path in ("/mcp", "/mcp/") and auth_token:
+            headers = dict(scope.get("headers", []))
+            authorization = headers.get(b"authorization", b"").decode()
+            expected = f"Bearer {auth_token}"
+            if authorization != expected:
+                await JSONResponse(
+                    {"error": "unauthorized"},
+                    status_code=401,
+                    headers={"WWW-Authenticate": "Bearer"},
+                )(scope, receive, send)
+                return
+
         if path in ("/mcp", "/mcp/"):
             await session_manager.handle_request(scope, receive, send)
         else:
-            response = PlainTextResponse("Not Found", status_code=404)
-            await response(scope, receive, send)
+            await PlainTextResponse("Not Found", status_code=404)(scope, receive, send)
 
     # Aplica CORS como middleware ASGI puro
     cors_app = CORSMiddleware(

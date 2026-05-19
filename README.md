@@ -375,7 +375,13 @@ docker compose logs -f cloudflared
 
 ### Conectando os clientes ao servidor HTTP
 
-Com o tunnel ativo, use `https://mcp.seudominio.com/mcp` em qualquer cliente:
+Com o tunnel ativo, use `https://mcp.seudominio.com/mcp` em qualquer cliente.
+
+> **Autenticação:** se você definiu `MCP_AUTH_TOKEN` no `.env`, todos os clientes precisam enviar o header `Authorization: Bearer <token>`. Consulte a documentação de cada cliente para saber onde configurar headers customizados. Para testar:
+> ```bash
+> curl https://mcp.seudominio.com/mcp \
+>   -H "Authorization: Bearer SEU_TOKEN"
+> ```
 
 **Claude Web Connector** (requer plano Pro ou Team)
 1. [claude.ai](https://claude.ai) → **Configurações → Conectores → Adicionar conector**
@@ -433,6 +439,7 @@ Os arquivos `projects/*.md` são montados como volume em `./projects/` — persi
 | `CLOUDFLARE_TUNNEL_TOKEN` | — | Token do Named Tunnel (deploy Docker) |
 | `MCP_PORT` | `8000` | Porta do servidor HTTP |
 | `MCP_HOST` | `0.0.0.0` | Host do servidor HTTP |
+| `MCP_AUTH_TOKEN` | (vazio) | Token Bearer para autenticação no endpoint `/mcp`. Se definido, clientes devem enviar `Authorization: Bearer <token>`. Se vazio, o servidor opera sem auth. |
 
 ### Personalizar a cadeia de modelos
 
