@@ -69,26 +69,23 @@ echo ""
 echo "╔════════════════════════════════════════════════════════════════╗"
 echo "║           mcp-prompt-refiner :: modos de deploy               ║"
 echo "╠════════════════════════════════════════════════════════════════╣"
-echo "║  1) stdio — Claude Code (recomendado para dev local)          ║"
+echo "║  1) stdio — Claude Code (dev local)                           ║"
 echo "║  2) stdio — Claude Desktop (WSL / Linux / macOS)              ║"
-echo "║  3) HTTP local (Claude Web Connector / ChatGPT)               ║"
-echo "║  4) HTTP + tunnel público (Cloudflare / ngrok)                ║"
-echo "║  5) Docker Compose + Cloudflare Named Tunnel (self-host)      ║"
+echo "║  3) Docker Compose + Cloudflare Named Tunnel (self-host)      ║"
 echo "╠════════════════════════════════════════════════════════════════╣"
 echo "║  Você pode configurar múltiplos ambientes de uma vez.         ║"
 echo "║  Exemplos: '1'    →  apenas Claude Code                       ║"
 echo "║            '1,2'  →  Claude Code + Claude Desktop             ║"
-echo "║            '5'    →  self-host via Docker + Cloudflare        ║"
+echo "║            '1,3'  →  Code local + self-host compartilhado     ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 echo ""
 
-# Valida e normaliza entrada com seleção múltipla (ex: "1,2,3" ou "1 2 3")
+# Valida e normaliza entrada com seleção múltipla (ex: "1,2" ou "1 2")
 DEPLOY_MODES=""
 while true; do
-  printf "Escolha os modos [1-5, separados por vírgula]: "
+  printf "Escolha os modos [1-3, separados por vírgula]: "
   read -r RAW_INPUT
 
-  # Normaliza: troca espaços por vírgulas, remove duplicatas, ordena
   NORMALIZED="$(echo "$RAW_INPUT" | tr ' ' ',' | tr -s ',')"
   VALID=1
   DEPLOY_MODES=""
@@ -97,8 +94,7 @@ while true; do
   for SEL in "${SELECTIONS[@]}"; do
     SEL="$(echo "$SEL" | tr -d '[:space:]')"
     case "$SEL" in
-      1|2|3|4|5)
-        # Adiciona apenas se ainda não estiver na lista
+      1|2|3)
         case ",$DEPLOY_MODES," in
           *",$SEL,"*) ;;
           *) DEPLOY_MODES="${DEPLOY_MODES:+$DEPLOY_MODES,}$SEL" ;;
@@ -107,7 +103,7 @@ while true; do
       "")
         ;;
       *)
-        echo "  Valor inválido: '$SEL'. Use apenas os números 1, 2, 3, 4 ou 5."
+        echo "  Valor inválido: '$SEL'. Use apenas os números 1, 2 ou 3."
         VALID=0
         break
         ;;
@@ -117,7 +113,7 @@ while true; do
   if [ "$VALID" -eq 1 ] && [ -n "$DEPLOY_MODES" ]; then
     break
   elif [ "$VALID" -eq 1 ]; then
-    echo "  Entrada vazia. Digite ao menos um número (1-5)."
+    echo "  Entrada vazia. Digite ao menos um número (1-3)."
   fi
 done
 
@@ -240,110 +236,7 @@ JSON
 }
 
 # ---------------------------------------------------------------------------
-# Opção 3 — HTTP local
-# ---------------------------------------------------------------------------
-
-_deploy_http_local() {
-  echo ""
-  echo "==> Modo HTTP local"
-  echo ""
-
-  printf "Host [127.0.0.1]: "
-  read -r HTTP_HOST
-  HTTP_HOST="${HTTP_HOST:-127.0.0.1}"
-
-  printf "Porta [8000]: "
-  read -r HTTP_PORT
-  HTTP_PORT="${HTTP_PORT:-8000}"
-
-  MCP_URL="http://${HTTP_HOST}:${HTTP_PORT}/mcp"
-
-  echo ""
-  echo "Para iniciar o servidor:"
-  echo ""
-  echo "  source \"$VENV_DIR/bin/activate\""
-  echo "  python \"$SERVER_PATH\" --mode http --host $HTTP_HOST --port $HTTP_PORT"
-  echo ""
-  echo "O endpoint MCP estará disponível em: $MCP_URL"
-  echo ""
-  echo "Para conectar no Claude Web Connector ou ChatGPT:"
-  echo "  Cole a URL $MCP_URL no campo de conector."
-  echo "  (Nota: Claude Web e ChatGPT exigem HTTPS — use opção 4 para URL pública.)"
-  echo ""
-
-  printf "Deseja iniciar o servidor agora em segundo plano? [s/N]: "
-  read -r START_NOW
-  case "$START_NOW" in
-    [sS]|[yY])
-      echo "==> Iniciando servidor em segundo plano..."
-      OPENROUTER_API_KEY="${OPENROUTER_API_KEY:-}" \
-        nohup "$PYTHON_IN_VENV" "$SERVER_PATH" \
-          --mode http --host "$HTTP_HOST" --port "$HTTP_PORT" \
-          >"$SCRIPT_DIR/server.log" 2>&1 &
-      SERVER_PID=$!
-      echo "    PID: $SERVER_PID | Log: $SCRIPT_DIR/server.log"
-      echo "    Para encerrar: kill $SERVER_PID"
-      ;;
-    *)
-      echo "    Servidor não iniciado. Rode o comando acima quando quiser."
-      ;;
-  esac
-
-  echo ""
-  echo "PRÓXIMOS PASSOS:"
-  echo "  1. Edite config.json e insira sua chave da OpenRouter."
-  echo "  2. Inicie o servidor com o comando acima."
-  echo "  3. Conecte no cliente MCP usando a URL: $MCP_URL"
-}
-
-# ---------------------------------------------------------------------------
-# Opção 4 — HTTP com tunnel público
-# ---------------------------------------------------------------------------
-
-_deploy_http_tunnel() {
-  echo ""
-  echo "==> Modo HTTP + tunnel público"
-  echo ""
-
-  printf "Host local [0.0.0.0]: "
-  read -r HTTP_HOST
-  HTTP_HOST="${HTTP_HOST:-0.0.0.0}"
-
-  printf "Porta local [8000]: "
-  read -r HTTP_PORT
-  HTTP_PORT="${HTTP_PORT:-8000}"
-
-  echo ""
-  echo "Passo 1 — Inicie o servidor MCP em HTTP:"
-  echo ""
-  echo "  source \"$VENV_DIR/bin/activate\""
-  echo "  python \"$SERVER_PATH\" --mode http --host $HTTP_HOST --port $HTTP_PORT"
-  echo ""
-  echo "Passo 2 — Abra um tunnel público (em outro terminal):"
-  echo ""
-  echo "  Com Cloudflare Tunnel (recomendado para produção/homelab):"
-  echo "    cloudflared tunnel --url http://localhost:$HTTP_PORT"
-  echo ""
-  echo "  Com ngrok (dev/teste):"
-  echo "    ngrok http $HTTP_PORT"
-  echo ""
-  echo "Passo 3 — Cole a URL pública no conector do cliente:"
-  echo "  Formato: https://<subdominio>.ngrok.app/mcp"
-  echo "        ou https://<seu-dominio>/mcp  (Cloudflare)"
-  echo ""
-  echo "  Claude Web Connector: Configurações → Conectores → Adicionar conector"
-  echo "  ChatGPT:              Configurações → Conectores → Adicionar servidor MCP"
-  echo ""
-  echo "IMPORTANTE: mantenha o servidor e o tunnel ativos enquanto usar o conector."
-  echo ""
-  echo "PRÓXIMOS PASSOS:"
-  echo "  1. Edite config.json e insira sua chave da OpenRouter."
-  echo "  2. Inicie o servidor (Passo 1) e o tunnel (Passo 2) em terminais separados."
-  echo "  3. Cole a URL pública no cliente MCP."
-}
-
-# ---------------------------------------------------------------------------
-# Opção 5 — Docker Compose + Cloudflare Named Tunnel
+# Opção 3 — Docker Compose + Cloudflare Named Tunnel
 # ---------------------------------------------------------------------------
 
 _deploy_docker_compose() {
@@ -470,18 +363,16 @@ _deploy_docker_compose() {
 }
 
 # ---------------------------------------------------------------------------
-# Despacha para cada ambiente selecionado (em ordem 1 → 2 → 3 → 4 → 5)
+# Despacha para cada ambiente selecionado (em ordem 1 → 2 → 3)
 # ---------------------------------------------------------------------------
 
-for MODE in 1 2 3 4 5; do
+for MODE in 1 2 3; do
   case ",$DEPLOY_MODES," in
     *",$MODE,"*)
       case "$MODE" in
         1) _deploy_claude_code ;;
         2) _deploy_claude_desktop ;;
-        3) _deploy_http_local ;;
-        4) _deploy_http_tunnel ;;
-        5) _deploy_docker_compose ;;
+        3) _deploy_docker_compose ;;
       esac
       ;;
   esac

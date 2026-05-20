@@ -356,7 +356,7 @@ Use esta opção para expor o servidor publicamente com URL fixa. Necessário pa
 A forma mais simples é usar o instalador — ele guia o preenchimento interativamente e gera o `MCP_AUTH_TOKEN` automaticamente:
 
 ```bash
-./install.sh  # → opção 5
+./install.sh  # → opção 3
 ```
 
 Ou configure manualmente:
