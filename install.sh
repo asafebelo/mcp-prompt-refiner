@@ -289,7 +289,8 @@ _deploy_docker_compose() {
   if [ -z "$CURRENT_OR" ] || [ "$CURRENT_OR" = "your_openrouter_key_here" ]; then
     echo "Chave da OpenRouter (https://openrouter.ai/keys):"
     printf "  Cole aqui: "
-    read -r OR_KEY
+    read -rs OR_KEY
+    echo ""
     [ -n "$OR_KEY" ] && _set_env_val "OPENROUTER_API_KEY" "$OR_KEY" && echo "    ✓ OPENROUTER_API_KEY salva"
   else
     echo "    OPENROUTER_API_KEY já configurada — mantida"
@@ -303,7 +304,8 @@ _deploy_docker_compose() {
     echo "  (one.dash.cloudflare.com → Zero Trust → Networks → Tunnels → Create a tunnel)"
     echo "  Configure o hostname público com Service: http://mcp-server:8000"
     printf "  Cole o token aqui: "
-    read -r CF_TOKEN
+    read -rs CF_TOKEN
+    echo ""
     [ -n "$CF_TOKEN" ] && _set_env_val "CLOUDFLARE_TUNNEL_TOKEN" "$CF_TOKEN" && echo "    ✓ CLOUDFLARE_TUNNEL_TOKEN salva"
   else
     echo "    CLOUDFLARE_TUNNEL_TOKEN já configurada — mantida"
@@ -319,7 +321,8 @@ _deploy_docker_compose() {
     case "$GEN_TOKEN" in
       [nN])
         printf "  Digite o token: "
-        read -r NEW_AUTH_TOKEN
+        read -rs NEW_AUTH_TOKEN
+        echo ""
         ;;
       *)
         if command -v openssl >/dev/null 2>&1; then
