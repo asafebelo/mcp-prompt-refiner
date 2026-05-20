@@ -1,0 +1,43 @@
+# Ambiente virtual e cache Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Segredos e configuração local
+config.json
+.env
+.env.local
+.env.production
+.env.staging
+
+# Contextos de projeto (dados do usuário, não da imagem)
+projects/*.md
+
+# Git
+.git/
+.gitignore
+
+# Documentação e scripts de instalação (não necessários na imagem)
+README.md
+CLAUDE.md
+install.sh
+*.md
+
+# Artefatos de desenvolvimento
+cloudflared.deb
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Claude Code
+.claude/

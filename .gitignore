@@ -6,6 +6,22 @@ config.json
 .env.staging
 cloudflared.deb
 
+# --- Credenciais e certificados ---
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.der
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+*.token
+secrets.json
+credentials.json
+
 # --- Dados de runtime (contexto persistente por projeto) ---
 # Cada usuário tem seus próprios .md; não versionar.
 projects/*.md

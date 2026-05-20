@@ -231,9 +231,32 @@ def build_http_app():
         else:
             await PlainTextResponse("Not Found", status_code=404)(scope, receive, send)
 
+    _MAX_BODY = 1 * 1024 * 1024  # 1 MB
+
+    async def limit_body(scope, receive, send):
+        if scope["type"] == "http":
+            body_size = 0
+
+            async def checked_receive():
+                nonlocal body_size
+                message = await receive()
+                if message.get("type") == "http.request":
+                    body_size += len(message.get("body", b""))
+                    if body_size > _MAX_BODY:
+                        await JSONResponse(
+                            {"error": "payload too large"},
+                            status_code=413,
+                        )(scope, receive, send)
+                        raise RuntimeError("payload too large")
+                return message
+
+            await router(scope, checked_receive, send)
+        else:
+            await router(scope, receive, send)
+
     # Aplica CORS como middleware ASGI puro
     cors_app = CORSMiddleware(
-        router,
+        limit_body,
         allow_origins=["*"],
         allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
         allow_headers=["*"],

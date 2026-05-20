@@ -1,4 +1,4 @@
-mcp>=1.0.0
-openai>=1.40.0
-starlette[full]>=0.27
-uvicorn>=0.31
+mcp==1.27.1
+openai==2.36.0
+starlette==1.0.0
+uvicorn==0.47.0

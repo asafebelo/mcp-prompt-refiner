@@ -67,30 +67,27 @@ def _resolve_api_key(or_cfg: dict[str, Any]) -> str:
 
 
 _DEFAULT_MODELS = [
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "openai/gpt-oss-120b:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "google/gemini-2.0-flash-exp:free",
+    "inclusionai/ring-2.6-1t:free",
+    "qwen/qwen-2.5-7b-instruct:free",
+    "openai/gpt-oss-20b:free",
+    "meta-llama/llama-3.1-8b-instruct:free",
+    "mistralai/mistral-7b-instruct:free",
+    "poolside/laguna-m.1:free",
     "google/gemini-2.0-flash-001",
-    "google/gemini-flash-1.5-8b",
-    "meta-llama/llama-3.1-8b-instruct",
     "anthropic/claude-haiku-4-5",
 ]
 
 
 def _resolve_models(or_cfg: dict[str, Any]) -> list[str]:
-    """Resolve a lista de modelos a tentar em ordem de preferência.
-
-    Suporta tanto o formato novo (lista 'models') quanto o legado
-    ('model' + 'fallback_model') para não quebrar configs existentes.
-    """
+    """Resolve a lista de modelos a tentar em ordem de preferência."""
     if "models" in or_cfg:
         models = [m for m in or_cfg["models"] if isinstance(m, str) and m.strip()]
         if models:
             return models
-
-    # Compatibilidade com formato antigo
-    primary = or_cfg.get("model", "").strip()
-    fallback = or_cfg.get("fallback_model", "").strip()
-    if primary:
-        return [m for m in (primary, fallback) if m] or _DEFAULT_MODELS
-
     return _DEFAULT_MODELS
 
 
