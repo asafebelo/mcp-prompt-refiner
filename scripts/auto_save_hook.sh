@@ -34,22 +34,38 @@ if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
     if python3 - "$TRANSCRIPT" 2>/dev/null <<'PYEOF'
 import sys, json
 
+# Lê em ordem reversa — para em save_context sem carregar o arquivo inteiro.
 found = False
-with open(sys.argv[1], encoding="utf-8") as fh:
-    for line in fh:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            entry = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        content = entry.get("message", {}).get("content", [])
-        if isinstance(content, list):
-            for block in content:
-                if isinstance(block, dict) and block.get("type") == "tool_use" and "save_context" in block.get("name", ""):
-                    found = True
-                    break
+with open(sys.argv[1], "rb") as fh:
+    fh.seek(0, 2)
+    pos = fh.tell()
+    buf = b""
+    while pos > 0:
+        chunk = min(pos, 8192)
+        pos -= chunk
+        fh.seek(pos)
+        buf = fh.read(chunk) + buf
+        lines = buf.split(b"\n")
+        # Mantém a linha incompleta no início para a próxima iteração.
+        buf = lines[0]
+        for line in reversed(lines[1:]):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            content = entry.get("message", {}).get("content", [])
+            if isinstance(content, list):
+                for block in content:
+                    if (isinstance(block, dict)
+                            and block.get("type") == "tool_use"
+                            and "save_context" in block.get("name", "")):
+                        found = True
+                        break
+            if found:
+                break
         if found:
             break
 

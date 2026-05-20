@@ -108,6 +108,38 @@ def _update_section(content: str, header: str, new_body: str) -> str:
     return pattern.sub(lambda m: m.group(1) + new_body + "\n\n", content, count=1)
 
 
+_MAX_HISTORY = 50
+
+
+def _trim_history(content: str) -> str:
+    """Mantém no máximo _MAX_HISTORY entradas no histórico de iterações.
+
+    Remove as entradas mais antigas quando o limite é excedido, preservando
+    o cabeçalho do arquivo e as seções de estado atual/decisões/próximos passos.
+    """
+    header_match = re.search(
+        rf"^{re.escape(HISTORY_HEADER)}$", content, flags=re.MULTILINE
+    )
+    if not header_match:
+        return content
+
+    before_history = content[: header_match.start()]
+    history_block = content[header_match.start():]
+
+    # Divide em entradas individuais (### Iteração N).
+    entries = re.split(r"(?=^### Iteração \d+)", history_block, flags=re.MULTILINE)
+    header_line = entries[0]  # "## Histórico de iterações\n"
+    iteration_entries = entries[1:]
+
+    if len(iteration_entries) <= _MAX_HISTORY:
+        return content
+
+    kept = iteration_entries[-_MAX_HISTORY:]
+    trimmed_count = len(iteration_entries) - _MAX_HISTORY
+    notice = f"*(histórico truncado — {trimmed_count} iteração(ões) mais antiga(s) removida(s))*\n\n"
+    return before_history + header_line + notice + "".join(kept)
+
+
 def _append_iteration(
     content: str,
     iteration_num: int,
@@ -123,10 +155,10 @@ def _append_iteration(
         f"- **Decisões:** {decisions or '(nenhuma)'}\n"
         f"- **Próximos passos:** {next_steps or '(nenhum)'}\n"
     )
-    # Garante quebra de linha antes do append.
     if not content.endswith("\n"):
         content += "\n"
-    return content + new_entry
+    content = content + new_entry
+    return _trim_history(content)
 
 
 def _accumulate_decisions(existing: str, new_decisions: str) -> str:

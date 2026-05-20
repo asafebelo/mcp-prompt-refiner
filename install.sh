@@ -334,7 +334,7 @@ _deploy_docker_compose() {
         else
           NEW_AUTH_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(32))")
         fi
-        echo "    Token gerado: $NEW_AUTH_TOKEN"
+        echo "    Token gerado e salvo em .env (não exibido — leia com: grep MCP_AUTH_TOKEN .env)"
         ;;
     esac
     if [ -n "$NEW_AUTH_TOKEN" ]; then

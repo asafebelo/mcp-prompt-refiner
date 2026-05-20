@@ -3,6 +3,18 @@ services:
     build: .
     restart: unless-stopped
     user: "1000:1000"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "1.0"
     environment:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - MCP_PORT=${MCP_PORT:-8000}
@@ -12,7 +24,7 @@ services:
     networks:
       - internal
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
       interval: 30s
       timeout: 5s
       retries: 3
