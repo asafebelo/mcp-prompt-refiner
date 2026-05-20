@@ -27,9 +27,31 @@ if [ -n "$HOOK_INPUT" ]; then
         2>/dev/null || true)
 fi
 
-# Se save_context já foi chamado nesta sessão, não injeta
+# Se save_context já foi chamado como ferramenta nesta sessão, não injeta.
+# Busca por chamada real de ferramenta no JSON (evita falso positivo por
+# menções textuais de "save_context" na conversa).
 if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
-    if grep -q "save_context" "$TRANSCRIPT" 2>/dev/null; then
+    if python3 - "$TRANSCRIPT" 2>/dev/null <<'PYEOF'
+import sys, json
+
+with open(sys.argv[1], encoding="utf-8") as fh:
+    for line in fh:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        # Procura blocos tool_use com name == "save_context"
+        content = entry.get("message", {}).get("content", [])
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "tool_use" and block.get("name") == "save_context":
+                    sys.exit(0)
+sys.exit(1)
+PYEOF
+    then
         exit 0
     fi
 fi
