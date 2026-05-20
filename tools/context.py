@@ -7,8 +7,10 @@ Não usa banco de dados — só I/O de arquivo simples.
 
 from __future__ import annotations
 
+import os
 import re
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -23,6 +25,27 @@ HISTORY_HEADER = "## Histórico de iterações"
 def _ensure_projects_dir() -> None:
     """Garante que a pasta projects/ existe."""
     PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _atomic_write(path: Path, content: str) -> None:
+    """Escreve atomicamente: tempfile no mesmo diretório + os.replace.
+
+    Garante que leitores concorrentes nunca vejam um arquivo parcialmente escrito,
+    e que escritas simultâneas não corrompam o conteúdo (a última vence).
+    """
+    parent = path.parent
+    parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(content)
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def _sanitize_project_name(name: str) -> str:
@@ -175,7 +198,7 @@ def save_context(
                 next_steps=next_steps,
                 timestamp=timestamp,
             )
-            path.write_text(content, encoding="utf-8")
+            _atomic_write(path, content)
             return (
                 f"Contexto do projeto '{project_name}' criado em {path}.\n"
                 f"Iteração 1 registrada em {timestamp}."

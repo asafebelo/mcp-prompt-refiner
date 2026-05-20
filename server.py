@@ -153,9 +153,14 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 
         return [TextContent(type="text", text=result)]
 
+    except ValueError as e:
+        # Erros de validação de input são seguros para retornar ao cliente.
+        print(f"[mcp-prompt-refiner] validação falhou em '{name}': {e}", file=sys.stderr)
+        return [TextContent(type="text", text=f"Parâmetro inválido: {e}")]
     except Exception as e:
-        print(f"[mcp-prompt-refiner] erro na tool '{name}': {e}", file=sys.stderr)
-        return [TextContent(type="text", text=f"Erro ao executar '{name}': {e}")]
+        # Erros internos (I/O, LLM, etc.) — loga o detalhe, retorna mensagem genérica.
+        print(f"[mcp-prompt-refiner] erro interno na tool '{name}': {e}", file=sys.stderr)
+        return [TextContent(type="text", text=f"Erro interno ao executar '{name}'. Verifique os logs do servidor.")]
 
 
 # ---------------------------------------------------------------------------
@@ -235,6 +240,17 @@ def build_http_app():
 
     async def limit_body(scope, receive, send):
         if scope["type"] == "http":
+            # Rejeita cedo via Content-Length antes de qualquer receive().
+            headers = dict(scope.get("headers", []))
+            cl = headers.get(b"content-length", b"")
+            try:
+                if cl and int(cl) > _MAX_BODY:
+                    await JSONResponse({"error": "payload too large"}, status_code=413)(scope, receive, send)
+                    return
+            except ValueError:
+                pass
+
+            # Defesa em profundidade para streams sem Content-Length.
             body_size = 0
 
             async def checked_receive():
@@ -243,21 +259,34 @@ def build_http_app():
                 if message.get("type") == "http.request":
                     body_size += len(message.get("body", b""))
                     if body_size > _MAX_BODY:
-                        await JSONResponse(
-                            {"error": "payload too large"},
-                            status_code=413,
-                        )(scope, receive, send)
-                        raise RuntimeError("payload too large")
+                        await JSONResponse({"error": "payload too large"}, status_code=413)(scope, receive, send)
+                        return {"type": "http.disconnect"}
                 return message
 
             await router(scope, checked_receive, send)
         else:
             await router(scope, receive, send)
 
-    # Aplica CORS como middleware ASGI puro
+    # CORS — quando sem auth, restringe a origens locais para evitar
+    # que sites visitados pelo navegador do usuário acessem o servidor.
+    if auth_token:
+        cors_origins = ["*"]
+    else:
+        cors_origins = [
+            "http://localhost",
+            "http://127.0.0.1",
+            "http://localhost:*",
+            "http://127.0.0.1:*",
+        ]
+        print(
+            "[mcp-prompt-refiner] AVISO: sem MCP_AUTH_TOKEN — CORS restrito a localhost",
+            file=sys.stderr,
+        )
+
     cors_app = CORSMiddleware(
         limit_body,
-        allow_origins=["*"],
+        allow_origins=cors_origins,
+        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$" if not auth_token else None,
         allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
         allow_headers=["*"],
     )
@@ -266,6 +295,17 @@ def build_http_app():
 
 def run_http(host: str, port: int) -> None:
     import uvicorn
+
+    # Aborta se bind público sem token — evita expor o servidor por engano.
+    auth_token = os.environ.get("MCP_AUTH_TOKEN", "").strip()
+    if host in ("0.0.0.0", "::") and not auth_token:
+        print(
+            f"[mcp-prompt-refiner] ERRO: bind em {host} sem MCP_AUTH_TOKEN. "
+            f"Defina MCP_AUTH_TOKEN ou use --host 127.0.0.1 para escutar só no localhost.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     starlette_app = build_http_app()
     print(f"[mcp-prompt-refiner] modo HTTP em http://{host}:{port}/mcp", file=sys.stderr)
     uvicorn.run(starlette_app, host=host, port=port, log_level="info")
@@ -299,8 +339,8 @@ Exemplos:
     )
     parser.add_argument(
         "--host",
-        default=os.environ.get("MCP_HOST", "0.0.0.0"),
-        help="Host para modo HTTP (padrão: 0.0.0.0)",
+        default=os.environ.get("MCP_HOST", "127.0.0.1"),
+        help="Host para modo HTTP (padrão: 127.0.0.1; use 0.0.0.0 só com MCP_AUTH_TOKEN)",
     )
     parser.add_argument(
         "--port",

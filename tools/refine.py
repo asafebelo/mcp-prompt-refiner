@@ -12,6 +12,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from .context import _sanitize_project_name
 from .openrouter import call_llm, get_default_language
 
 
@@ -37,7 +38,8 @@ def _load_project_context(project_name: str) -> str:
 
     Devolve string vazia caso o arquivo não exista — isso é normal para projetos novos.
     """
-    project_file = PROJECTS_DIR / f"{project_name}.md"
+    safe_name = _sanitize_project_name(project_name)
+    project_file = PROJECTS_DIR / f"{safe_name}.md"
     if not project_file.exists():
         return ""
     try:
