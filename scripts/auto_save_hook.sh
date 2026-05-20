@@ -34,6 +34,7 @@ if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
     if python3 - "$TRANSCRIPT" 2>/dev/null <<'PYEOF'
 import sys, json
 
+found = False
 with open(sys.argv[1], encoding="utf-8") as fh:
     for line in fh:
         line = line.strip()
@@ -43,13 +44,16 @@ with open(sys.argv[1], encoding="utf-8") as fh:
             entry = json.loads(line)
         except json.JSONDecodeError:
             continue
-        # Procura blocos tool_use com name == "save_context"
         content = entry.get("message", {}).get("content", [])
         if isinstance(content, list):
             for block in content:
                 if isinstance(block, dict) and block.get("type") == "tool_use" and block.get("name") == "save_context":
-                    sys.exit(0)
-sys.exit(1)
+                    found = True
+                    break
+        if found:
+            break
+
+sys.exit(0 if found else 1)
 PYEOF
     then
         exit 0
