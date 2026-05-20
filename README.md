@@ -36,6 +36,8 @@ echo 'OPENROUTER_API_KEY=sk-or-v1-...' >> .env   # ou edite config.json
 > }
 > ```
 
+> **CLAUDE.md nos seus projetos:** copie [`templates/CLAUDE.md`](templates/CLAUDE.md) para a raiz de cada projeto que usar o servidor. Substitua `[NOME-DO-PROJETO]` e remova o bloco de instruções. O Claude Code carrega o arquivo automaticamente em cada sessão.
+
 > **Outros clientes** (Claude Desktop, ChatGPT, Cursor, Docker + Cloudflare): veja as seções abaixo.
 
 ---
