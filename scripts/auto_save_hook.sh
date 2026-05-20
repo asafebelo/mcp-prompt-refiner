@@ -47,7 +47,7 @@ with open(sys.argv[1], encoding="utf-8") as fh:
         content = entry.get("message", {}).get("content", [])
         if isinstance(content, list):
             for block in content:
-                if isinstance(block, dict) and block.get("type") == "tool_use" and block.get("name") == "save_context":
+                if isinstance(block, dict) and block.get("type") == "tool_use" and "save_context" in block.get("name", ""):
                     found = True
                     break
         if found:
