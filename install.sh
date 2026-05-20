@@ -277,10 +277,14 @@ _deploy_docker_compose() {
   # Define ou atualiza variável no .env
   _set_env_val() {
     local key="$1" val="$2"
+    # Escapa caracteres especiais do sed no valor (|, \, &) para evitar
+    # interpretação no RHS do comando s|...|...|.
+    local escaped_val
+    escaped_val="$(printf '%s' "$val" | sed -e 's/[\\&|]/\\&/g')"
     if grep -qE "^#*[[:space:]]*${key}=" "$ENV_FILE" 2>/dev/null; then
-      sed -i "s|^#*[[:space:]]*${key}=.*|${key}=${val}|" "$ENV_FILE"
+      sed -i "s|^#*[[:space:]]*${key}=.*|${key}=${escaped_val}|" "$ENV_FILE"
     else
-      echo "${key}=${val}" >> "$ENV_FILE"
+      printf '%s=%s\n' "$key" "$val" >> "$ENV_FILE"
     fi
   }
 

@@ -40,6 +40,7 @@ def _build_client(api_key: str) -> OpenAI:
     return OpenAI(
         base_url="https://openrouter.ai/api/v1",
         api_key=api_key,
+        timeout=30.0,
         default_headers={
             "HTTP-Referer": "https://github.com/mcp-prompt-refiner",
             "X-Title": "MCP Prompt Refiner",

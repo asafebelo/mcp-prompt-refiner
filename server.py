@@ -25,6 +25,8 @@ import asyncio
 import hmac
 import os
 import sys
+import time
+from collections import defaultdict
 from typing import Any
 
 from mcp.server import Server
@@ -174,12 +176,38 @@ async def run_stdio() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Rate limiter simples — token bucket por IP
+# ---------------------------------------------------------------------------
+
+class _RateLimiter:
+    """Token bucket por IP: máximo de `max_calls` chamadas por `window_seconds`."""
+
+    def __init__(self, max_calls: int = 30, window_seconds: float = 60.0) -> None:
+        self._max = max_calls
+        self._window = window_seconds
+        self._buckets: dict[str, list[float]] = defaultdict(list)
+
+    def is_allowed(self, client_ip: str) -> bool:
+        now = time.monotonic()
+        timestamps = self._buckets[client_ip]
+        # Remove chamadas fora da janela deslizante.
+        cutoff = now - self._window
+        self._buckets[client_ip] = [t for t in timestamps if t > cutoff]
+        if len(self._buckets[client_ip]) >= self._max:
+            return False
+        self._buckets[client_ip].append(now)
+        return True
+
+
+_rate_limiter = _RateLimiter(max_calls=30, window_seconds=60.0)
+
+
+# ---------------------------------------------------------------------------
 # Modo HTTP (Streamable HTTP — compatível com Claude Web e ChatGPT Connector)
 # ---------------------------------------------------------------------------
 
 def build_http_app():
     """Constrói e retorna o app ASGI com transporte Streamable HTTP no endpoint /mcp."""
-    import contextlib
     from starlette.middleware.cors import CORSMiddleware
     from starlette.responses import JSONResponse, PlainTextResponse
     from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
@@ -193,11 +221,6 @@ def build_http_app():
         stateless=True,
         json_response=False,
     )
-
-    @contextlib.asynccontextmanager
-    async def lifespan(inner_app):
-        async with session_manager.run():
-            yield
 
     async def router(scope, receive, send):
         """Roteia /mcp para o session_manager; demais paths retornam 404."""
@@ -213,9 +236,16 @@ def build_http_app():
 
         path = scope.get("path", "")
 
-        # Endpoint de health check — sem autenticação (usado pelo Docker)
+        # Endpoint de health check — acessível só por loopback quando sem auth,
+        # para evitar que scanners externos confirmem a existência do servidor.
         if path == "/health":
-            await PlainTextResponse("ok")(scope, receive, send)
+            client = scope.get("client")
+            client_ip = client[0] if client else ""
+            is_loopback = client_ip in ("127.0.0.1", "::1", "")
+            if auth_token or is_loopback:
+                await PlainTextResponse("ok")(scope, receive, send)
+            else:
+                await PlainTextResponse("Not Found", status_code=404)(scope, receive, send)
             return
 
         # Autenticação Bearer opcional para /mcp
@@ -232,6 +262,15 @@ def build_http_app():
                 return
 
         if path in ("/mcp", "/mcp/"):
+            client_ip = (dict(scope.get("headers", [])).get(b"x-forwarded-for", b"") or
+                         scope.get("client", ("unknown", 0))[0].encode()).decode().split(",")[0].strip()
+            if not _rate_limiter.is_allowed(client_ip):
+                await JSONResponse(
+                    {"error": "too many requests"},
+                    status_code=429,
+                    headers={"Retry-After": "60"},
+                )(scope, receive, send)
+                return
             await session_manager.handle_request(scope, receive, send)
         else:
             await PlainTextResponse("Not Found", status_code=404)(scope, receive, send)

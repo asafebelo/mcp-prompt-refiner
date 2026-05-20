@@ -143,8 +143,9 @@ def _accumulate_decisions(existing: str, new_decisions: str) -> str:
     if not existing_clean or existing_clean == "(nenhuma decisão registrada ainda)":
         return new_decisions
 
-    # Se a decisão nova já aparece literalmente, não duplica.
-    if new_decisions in existing_clean:
+    # Dedup linha-a-linha para evitar falso-positivo por substring.
+    existing_lines = {line.lstrip("- ").strip() for line in existing_clean.splitlines() if line.strip()}
+    if new_decisions in existing_lines:
         return existing_clean
 
     return f"{existing_clean}\n- {new_decisions}"
