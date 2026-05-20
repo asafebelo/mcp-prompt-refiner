@@ -38,10 +38,10 @@ O refinamento é feito por uma LLM leve via [OpenRouter](https://openrouter.ai),
 ## Como funciona por baixo dos panos
 
 ```
-Claude Code
+Cliente MCP (Claude Code, Claude Desktop, ChatGPT, Cursor…)
     │
-    ▼
-server.py  ←── MCP stdio transport
+    ▼  stdio (local) ou HTTP (tunnel)
+server.py
     │
     ├── tools/refine.py     → monta system prompt + chama OpenRouter
     ├── tools/context.py    → lê/escreve projects/{nome}.md
@@ -74,8 +74,15 @@ Cada projeto ganha um arquivo `projects/{nome}.md` com descrição, decisões t�
 
 ## Pré-requisitos
 
+**Todos os modos**
+- Conta na [OpenRouter](https://openrouter.ai) com créditos (uso mínimo — modelos gratuitos disponíveis)
+
+**Modo stdio** (Claude Code, Claude Desktop, Cursor…)
 - Python 3.11+
-- Conta na [OpenRouter](https://openrouter.ai) com créditos (uso mínimo — modelos gratuitos ou de baixo custo)
+
+**Modo self-host** (Docker + Cloudflare Tunnel)
+- [Docker Engine](https://docs.docker.com/engine/install/) — Python local não é necessário
+- Domínio gerenciado no [Cloudflare](https://cloudflare.com) (gratuito)
 
 ---
 

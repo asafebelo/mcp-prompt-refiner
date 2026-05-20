@@ -1,5 +1,5 @@
 {
-  "_comment_api_key": "RECOMENDADO: deixe api_key como placeholder e injete a chave via variável de ambiente OPENROUTER_API_KEY no registro do MCP (veja README ou instruções do install.sh). Isso evita que a chave fique em arquivo no disco.",
+  "_comment_api_key": "RECOMENDADO: use a variável de ambiente OPENROUTER_API_KEY em vez de preencher api_key aqui. Modo stdio: passe via 'claude mcp add --env OPENROUTER_API_KEY=sk-or-...' ou exporte no shell antes de iniciar. Modo Docker: defina no .env (copiado de .env.example). A env var tem prioridade sobre o valor deste arquivo.",
   "openrouter": {
     "api_key": "COLOQUE_SUA_CHAVE_AQUI",
     "models": [
