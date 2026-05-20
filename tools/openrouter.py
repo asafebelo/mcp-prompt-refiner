@@ -23,14 +23,11 @@ CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.json"
 def _load_config() -> dict[str, Any]:
     """Lê e devolve o conteúdo de config.json como dict.
 
-    Levanta FileNotFoundError com mensagem clara se o arquivo não existir,
-    e ValueError se o JSON estiver malformado.
+    Retorna {} se o arquivo não existir — modo Docker usa apenas env vars.
+    Levanta ValueError se o JSON estiver malformado.
     """
     if not CONFIG_PATH.exists():
-        raise FileNotFoundError(
-            f"config.json não encontrado em {CONFIG_PATH}. "
-            f"Copie config.example.json para config.json e preencha sua chave OpenRouter."
-        )
+        return {}
     try:
         with CONFIG_PATH.open("r", encoding="utf-8") as f:
             return json.load(f)

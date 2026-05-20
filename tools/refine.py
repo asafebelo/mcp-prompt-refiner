@@ -33,7 +33,7 @@ Regras:
 
 
 def _load_project_context(project_name: str) -> str:
-    """Lê o PROJECT_CONTEXT.md do projeto, se existir.
+    """Lê o arquivo {project_name}.md do projeto, se existir.
 
     Devolve string vazia caso o arquivo não exista — isso é normal para projetos novos.
     """
@@ -77,7 +77,7 @@ def refine_prompt(
     if project_context:
         user_prompt = (
             f"Idioma de saída: {lang}\n\n"
-            f"Contexto do projeto '{project_name}' (lido de PROJECT_CONTEXT.md):\n"
+            f"Contexto do projeto '{project_name}' (lido de {project_name}.md):\n"
             f"---\n{project_context}\n---\n\n"
             f"Intenção do usuário:\n{intention}\n\n"
             f"Gere o prompt estruturado para o Claude Code executar."

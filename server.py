@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hmac
 import os
 import sys
 from typing import Any
@@ -217,7 +218,7 @@ def build_http_app():
             headers = dict(scope.get("headers", []))
             authorization = headers.get(b"authorization", b"").decode()
             expected = f"Bearer {auth_token}"
-            if authorization != expected:
+            if not hmac.compare_digest(authorization, expected):
                 await JSONResponse(
                     {"error": "unauthorized"},
                     status_code=401,

@@ -2,13 +2,13 @@ services:
   mcp-server:
     build: .
     restart: unless-stopped
+    user: "1000:1000"
     environment:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - MCP_PORT=${MCP_PORT:-8000}
       - MCP_AUTH_TOKEN=${MCP_AUTH_TOKEN:-}
     volumes:
       - ./projects:/app/projects
-      - ./config.json:/app/config.json:ro
     networks:
       - internal
     healthcheck:
@@ -21,7 +21,9 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
     depends_on:
       mcp-server:
         condition: service_healthy

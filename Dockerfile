@@ -1,6 +1,6 @@
 FROM python:3.12-slim
 
-RUN useradd --create-home --shell /bin/bash appuser
+RUN useradd --uid 1000 --create-home --shell /bin/bash appuser
 
 WORKDIR /app
 
