@@ -4,6 +4,42 @@ Servidor MCP que refina suas intenções em prompts estruturados e persiste o co
 
 ---
 
+## Quick Start — Claude Code (3 passos)
+
+```bash
+# 1. Clone e instale
+git clone https://github.com/asafebelo/mcp-prompt-refiner.git
+cd mcp-prompt-refiner
+./install.sh   # escolha opção 1 (Claude Code)
+```
+
+```bash
+# 2. Adicione sua chave da OpenRouter
+#    Obtenha em: https://openrouter.ai/keys
+echo 'OPENROUTER_API_KEY=sk-or-v1-...' >> .env   # ou edite config.json
+```
+
+```bash
+# 3. Reinicie o Claude Code — pronto.
+#    Nas próximas sessões, peça ao Claude:
+#    "use o refine_prompt para: <sua intenção>"
+#    "carrega o contexto do projeto <nome>"
+```
+
+> **Auto-save de contexto (opcional):** adicione o hook abaixo ao `~/.claude/settings.json` para que o contexto seja salvo automaticamente ao final de cada sessão:
+> ```json
+> {
+>   "hooks": {
+>     "Stop": [{ "hooks": [{ "type": "command", "asyncRewake": true,
+>       "command": "bash /caminho/para/mcp-prompt-refiner/scripts/auto_save_hook.sh" }] }]
+>   }
+> }
+> ```
+
+> **Outros clientes** (Claude Desktop, ChatGPT, Cursor, Docker + Cloudflare): veja as seções abaixo.
+
+---
+
 ## O problema
 
 Quem usa o Claude Code no dia a dia esbarra em duas frustrações recorrentes:
@@ -454,7 +490,7 @@ Os arquivos `projects/*.md` são montados como volume em `./projects/` — persi
 | `OPENROUTER_API_KEY` | — | Chave da OpenRouter (prioridade sobre `config.json`) |
 | `CLOUDFLARE_TUNNEL_TOKEN` | — | Token do Named Tunnel (deploy Docker) |
 | `MCP_PORT` | `8000` | Porta do servidor HTTP |
-| `MCP_HOST` | `0.0.0.0` | Host do servidor HTTP |
+| `MCP_HOST` | `127.0.0.1` | Host do servidor HTTP (use `0.0.0.0` só com `MCP_AUTH_TOKEN` definido) |
 | `MCP_AUTH_TOKEN` | (vazio) | Token Bearer para autenticação no endpoint `/mcp`. Gere com `openssl rand -hex 32`. Se vazio, o servidor opera sem auth. |
 
 ### Personalizar a cadeia de modelos
