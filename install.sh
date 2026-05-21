@@ -167,7 +167,7 @@ _deploy_claude_desktop() {
     echo "    Ambiente: WSL detectado — usando comando 'wsl' para o Claude Desktop Windows."
     echo ""
     echo "Adicione o bloco abaixo ao arquivo claude_desktop_config.json do Windows:"
-    echo "  Caminho típico: %APPDATA%\\Claude\\claude_desktop_config.json"
+    echo "  Caminho: %LOCALAPPDATA%\\Packages\\Claude_*\\LocalCache\\Roaming\\Claude\\claude_desktop_config.json"
     echo ""
     cat <<JSON
 {
