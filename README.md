@@ -394,12 +394,14 @@ Use esta opção para expor o servidor publicamente com URL fixa. Necessário pa
 2. Clique em **Create a tunnel** → escolha **Cloudflared**
 3. Dê um nome (ex: `mcp-refiner`) e clique em **Save tunnel**
 4. Copie o **token** exibido na tela de instalação
-5. Em **Public Hostname**, configure:
-   - **Subdomain:** ex `mcp` (resultará em `mcp.seudominio.com`)
+5. Na aba **Public Hostname**, configure o endereço público:
+   - **Subdomain:** ex `refiner` (resultará em `refiner.seudominio.com`)
    - **Domain:** seu domínio
-   - **Service:** `http://mcp-server:8000`
+6. Na aba **Service**, configure o destino interno — onde o `cloudflared` vai encaminhar o tráfego dentro da rede Docker:
+   - **Type:** `HTTP`
+   - **URL:** `mcp-server:8000`
 
-> `http://mcp-server:8000` funciona porque `cloudflared` e o servidor rodam na mesma rede Docker interna. Use exatamente este valor no dashboard.
+> **Atenção:** o campo **Service** deve conter o endereço interno do container (`mcp-server:8000`), não o domínio público. O `cloudflared` e o servidor rodam na mesma rede Docker e se comunicam diretamente por esse hostname.
 
 **2. Configure as variáveis de ambiente**
 
