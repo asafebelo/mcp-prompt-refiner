@@ -72,7 +72,7 @@ fi
 
 # Lê valor atual de uma variável no .env (ignora linhas comentadas)
 _get_env_val() {
-  grep -E "^$1=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2-
+  grep -E "^$1=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- || true
 }
 
 # Define ou atualiza variável no .env
