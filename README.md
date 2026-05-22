@@ -2,6 +2,18 @@
 
 Servidor MCP que refina suas intenções em prompts estruturados e persiste o contexto de cada projeto entre sessões — compatível com Claude Code, Claude Desktop, ChatGPT, Cursor e outros clientes MCP.
 
+---
+
+A principal dificuldade na interação humano-IA não é a IA — é o prompt.
+
+**"Adiciona autenticação no meu projeto"** é uma intenção, não um prompt. O assistente vai fazer algo, mas provavelmente não exatamente o que você precisava, no estilo que você queria, com as restrições que você tem. Você reescreve, ajusta, itera — e gasta muito mais tempo do que deveria.
+
+O segundo problema: cada vez que você abre o Claude Code em um projeto, ele começa do zero. Decisões técnicas tomadas ontem, o que já foi implementado, por que você escolheu aquela biblioteca — tudo precisa ser reexplicado a cada sessão.
+
+O `mcp-prompt-refiner` ataca os dois: transforma intenções cruas em prompts estruturados antes de executar, e persiste o contexto de cada projeto entre sessões para que o assistente retome exatamente de onde parou.
+
+---
+
 ## Ferramentas
 
 | Ferramenta | O que faz |
