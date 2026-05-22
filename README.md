@@ -166,13 +166,13 @@ Use esta opção para expor o servidor publicamente. Necessário para Claude Web
 3. Dê um nome (ex: `mcp-refiner`) e clique em **Save tunnel**
 4. Copie o **token** exibido na tela de instalação
 5. Na aba **Public Hostname**, configure o endereço público:
-   - **Subdomain:** ex `refiner` (resultará em `refiner.seudominio.com`)
+   - **Subdomain:** ex `mcp` (resultará em `mcp.seudominio.com`)
    - **Domain:** seu domínio
 6. Na aba **Service**, configure o destino interno:
    - **Type:** `HTTP`
    - **URL:** `mcp-server:8000`
 
-> **Atenção:** o campo **Service** deve conter o endereço interno do container (`mcp-server:8000`), não o domínio público. O `cloudflared` e o servidor rodam na mesma rede Docker e se comunicam diretamente por esse hostname.
+> **Por que HTTP e não HTTPS aqui?** O Cloudflare termina o TLS no edge — a URL pública (`mcp.seudominio.com`) é sempre HTTPS para quem acessa. O campo **Service** é a perna *interna*: o `cloudflared` fala com o `mcp-server` dentro da rede privada Docker, onde não há certificado TLS. Usar `https://` aqui causa erro de handshake porque o servidor fala HTTP puro. Não há perda de segurança: o tráfego externo já está protegido pelo próprio protocolo do Cloudflare Tunnel.
 
 **2. Suba os containers**
 
@@ -211,30 +211,9 @@ docker compose up -d --build        # recriar após atualização
 
 Os arquivos `projects/*.md` são montados como volume em `./projects/` — persistem entre restarts.
 
-**4. Proteja com Cloudflare Access (recomendado)**
+**4. Conecte os clientes**
 
-O servidor não tem autenticação própria — a proteção fica no Cloudflare Access, que bloqueia qualquer requisição não autorizada antes de chegar ao container.
-
-No painel do Cloudflare: **Zero Trust → Access → Applications → Add an application → Self-hosted**
-
-Configure:
-- **Application name:** mcp-prompt-refiner
-- **Session duration:** 24h (ou conforme sua preferência)
-- **Application domain:** `refiner.seudominio.com`
-
-Em **Policies**, adicione uma regra de acesso. Exemplos:
-
-| Objetivo | Rule name | Action | Include |
-|---|---|---|---|
-| Só você | `owner` | Allow | Emails — `seu@email.com` |
-| Qualquer Google Workspace | `org` | Allow | Emails ending in — `@suaempresa.com` |
-| Bloquear tudo mais | (padrão) | Block | — |
-
-> Depois de ativar o Access, acesse `https://refiner.seudominio.com` no browser para autenticar. O Cloudflare armazena um cookie de sessão — conexões subsequentes dos clientes de IA que passam pelo mesmo domínio ficam autenticadas.
-
-**5. Conecte os clientes**
-
-Com o tunnel ativo e o Access configurado, use `https://refiner.seudominio.com/mcp` em qualquer cliente.
+Com o tunnel ativo, use `https://mcp.seudominio.com/mcp` em qualquer cliente.
 
 **Claude Web** (plano Pro ou Team)
 : [claude.ai](https://claude.ai) → Configurações → Conectores → Adicionar conector → cole a URL
@@ -244,7 +223,7 @@ Com o tunnel ativo e o Access configurado, use `https://refiner.seudominio.com/m
 
 **Claude Code via URL:**
 ```bash
-claude mcp add --scope user --url https://refiner.seudominio.com/mcp mcp-prompt-refiner
+claude mcp add --scope user --url https://mcp.seudominio.com/mcp mcp-prompt-refiner
 ```
 
 **Claude Desktop via URL:**
@@ -253,7 +232,7 @@ claude mcp add --scope user --url https://refiner.seudominio.com/mcp mcp-prompt-
   "mcpServers": {
     "mcp-prompt-refiner": {
       "type": "sse",
-      "url": "https://refiner.seudominio.com/mcp"
+      "url": "https://mcp.seudominio.com/mcp"
     }
   }
 }
@@ -263,7 +242,7 @@ claude mcp add --scope user --url https://refiner.seudominio.com/mcp mcp-prompt-
 ```toml
 # ~/.codex/config.toml
 [mcp_servers.mcp-prompt-refiner]
-url = "https://refiner.seudominio.com/mcp"
+url = "https://mcp.seudominio.com/mcp"
 ```
 
 ---
