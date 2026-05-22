@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import hmac
 import os
 import sys
 import time
@@ -212,10 +211,6 @@ def build_http_app():
     from starlette.responses import JSONResponse, PlainTextResponse
     from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 
-    auth_token = os.environ.get("MCP_AUTH_TOKEN", "").strip()
-    if auth_token:
-        print("[mcp-prompt-refiner] autenticação Bearer habilitada", file=sys.stderr)
-
     session_manager = StreamableHTTPSessionManager(
         app=app,
         stateless=True,
@@ -236,30 +231,9 @@ def build_http_app():
 
         path = scope.get("path", "")
 
-        # Endpoint de health check — acessível só por loopback quando sem auth,
-        # para evitar que scanners externos confirmem a existência do servidor.
         if path == "/health":
-            client = scope.get("client")
-            client_ip = client[0] if client else ""
-            is_loopback = client_ip in ("127.0.0.1", "::1", "")
-            if auth_token or is_loopback:
-                await PlainTextResponse("ok")(scope, receive, send)
-            else:
-                await PlainTextResponse("Not Found", status_code=404)(scope, receive, send)
+            await PlainTextResponse("ok")(scope, receive, send)
             return
-
-        # Autenticação Bearer opcional para /mcp
-        if path in ("/mcp", "/mcp/") and auth_token:
-            headers = dict(scope.get("headers", []))
-            authorization = headers.get(b"authorization", b"").decode()
-            expected = f"Bearer {auth_token}"
-            if not hmac.compare_digest(authorization, expected):
-                await JSONResponse(
-                    {"error": "unauthorized"},
-                    status_code=401,
-                    headers={"WWW-Authenticate": "Bearer"},
-                )(scope, receive, send)
-                return
 
         if path in ("/mcp", "/mcp/"):
             client_ip = (dict(scope.get("headers", [])).get(b"x-forwarded-for", b"") or
@@ -279,7 +253,6 @@ def build_http_app():
 
     async def limit_body(scope, receive, send):
         if scope["type"] == "http":
-            # Rejeita cedo via Content-Length antes de qualquer receive().
             headers = dict(scope.get("headers", []))
             cl = headers.get(b"content-length", b"")
             try:
@@ -289,7 +262,6 @@ def build_http_app():
             except ValueError:
                 pass
 
-            # Defesa em profundidade para streams sem Content-Length.
             body_size = 0
 
             async def checked_receive():
@@ -306,26 +278,10 @@ def build_http_app():
         else:
             await router(scope, receive, send)
 
-    # CORS — quando sem auth, restringe a origens locais para evitar
-    # que sites visitados pelo navegador do usuário acessem o servidor.
-    if auth_token:
-        cors_origins = ["*"]
-    else:
-        cors_origins = [
-            "http://localhost",
-            "http://127.0.0.1",
-            "http://localhost:*",
-            "http://127.0.0.1:*",
-        ]
-        print(
-            "[mcp-prompt-refiner] AVISO: sem MCP_AUTH_TOKEN — CORS restrito a localhost",
-            file=sys.stderr,
-        )
-
+    # Autenticação é responsabilidade do Cloudflare Access — CORS permissivo.
     cors_app = CORSMiddleware(
         limit_body,
-        allow_origins=cors_origins,
-        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$" if not auth_token else None,
+        allow_origins=["*"],
         allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
         allow_headers=["*"],
     )
@@ -334,16 +290,6 @@ def build_http_app():
 
 def run_http(host: str, port: int) -> None:
     import uvicorn
-
-    # Aborta se bind público sem token — evita expor o servidor por engano.
-    auth_token = os.environ.get("MCP_AUTH_TOKEN", "").strip()
-    if host in ("0.0.0.0", "::") and not auth_token:
-        print(
-            f"[mcp-prompt-refiner] ERRO: bind em {host} sem MCP_AUTH_TOKEN. "
-            f"Defina MCP_AUTH_TOKEN ou use --host 127.0.0.1 para escutar só no localhost.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
 
     starlette_app = build_http_app()
     print(f"[mcp-prompt-refiner] modo HTTP em http://{host}:{port}/mcp", file=sys.stderr)
@@ -379,7 +325,7 @@ Exemplos:
     parser.add_argument(
         "--host",
         default=os.environ.get("MCP_HOST", "127.0.0.1"),
-        help="Host para modo HTTP (padrão: 127.0.0.1; use 0.0.0.0 só com MCP_AUTH_TOKEN)",
+        help="Host para modo HTTP (padrão: 127.0.0.1; Docker usa 0.0.0.0)",
     )
     parser.add_argument(
         "--port",

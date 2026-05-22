@@ -329,27 +329,6 @@ _deploy_docker_compose() {
     echo "    CLOUDFLARE_TUNNEL_TOKEN já configurada — mantida"
   fi
 
-  # --- MCP_AUTH_TOKEN (obrigatório no modo Docker: o servidor recusa bind em
-  #     0.0.0.0 sem token, então geramos automaticamente se não estiver definido) ---
-  CURRENT_AUTH=$(_get_env_val "MCP_AUTH_TOKEN")
-  if [ -z "$CURRENT_AUTH" ]; then
-    echo ""
-    echo "==> Gerando MCP_AUTH_TOKEN (obrigatório para Docker + Cloudflare Tunnel)..."
-    if command -v openssl >/dev/null 2>&1; then
-      NEW_AUTH_TOKEN=$(openssl rand -hex 32)
-    else
-      NEW_AUTH_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(32))")
-    fi
-    _set_env_val "MCP_AUTH_TOKEN" "$NEW_AUTH_TOKEN"
-    echo "    ✓ MCP_AUTH_TOKEN gerado e salvo em .env"
-    echo "      Para ver: grep MCP_AUTH_TOKEN .env"
-    echo ""
-    echo "    IMPORTANTE: guarde este token — clientes de IA precisam enviá-lo"
-    echo "    no header:  Authorization: Bearer <token>"
-  else
-    echo "    MCP_AUTH_TOKEN já configurada — mantida"
-  fi
-
   echo ""
   echo "==> Iniciando containers..."
   cd "$SCRIPT_DIR"

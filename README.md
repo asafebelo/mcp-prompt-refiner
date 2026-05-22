@@ -213,15 +213,30 @@ docker compose up -d --build        # recriar após atualização
 
 Os arquivos `projects/*.md` são montados como volume em `./projects/` — persistem entre restarts.
 
-**4. Conecte os clientes**
+**4. Proteja com Cloudflare Access (recomendado)**
 
-Com o tunnel ativo, use `https://refiner.seudominio.com/mcp` em qualquer cliente.
+O servidor não tem autenticação própria — a proteção fica no Cloudflare Access, que bloqueia qualquer requisição não autorizada antes de chegar ao container.
 
-> Se `MCP_AUTH_TOKEN` estiver definido, todos os clientes precisam enviar `Authorization: Bearer <token>`. Para testar:
-> ```bash
-> curl https://refiner.seudominio.com/mcp \
->   -H "Authorization: Bearer SEU_TOKEN"
-> ```
+No painel do Cloudflare: **Zero Trust → Access → Applications → Add an application → Self-hosted**
+
+Configure:
+- **Application name:** mcp-prompt-refiner
+- **Session duration:** 24h (ou conforme sua preferência)
+- **Application domain:** `refiner.seudominio.com`
+
+Em **Policies**, adicione uma regra de acesso. Exemplos:
+
+| Objetivo | Rule name | Action | Include |
+|---|---|---|---|
+| Só você | `owner` | Allow | Emails — `seu@email.com` |
+| Qualquer Google Workspace | `org` | Allow | Emails ending in — `@suaempresa.com` |
+| Bloquear tudo mais | (padrão) | Block | — |
+
+> Depois de ativar o Access, acesse `https://refiner.seudominio.com` no browser para autenticar. O Cloudflare armazena um cookie de sessão — conexões subsequentes dos clientes de IA que passam pelo mesmo domínio ficam autenticadas.
+
+**5. Conecte os clientes**
+
+Com o tunnel ativo e o Access configurado, use `https://refiner.seudominio.com/mcp` em qualquer cliente.
 
 **Claude Web** (plano Pro ou Team)
 : [claude.ai](https://claude.ai) → Configurações → Conectores → Adicionar conector → cole a URL
@@ -328,8 +343,7 @@ lista todos os projetos com contexto salvo
 | `OPENROUTER_API_KEY` | — | Chave da OpenRouter — fonte única para todos os modos |
 | `CLOUDFLARE_TUNNEL_TOKEN` | — | Token do Named Tunnel (deploy Docker) |
 | `MCP_PORT` | `8000` | Porta do servidor HTTP |
-| `MCP_HOST` | `127.0.0.1` | Host do servidor (use `0.0.0.0` só com `MCP_AUTH_TOKEN` definido) |
-| `MCP_AUTH_TOKEN` | (vazio) | Token Bearer para autenticação no endpoint `/mcp`. Gere com `openssl rand -hex 32`. |
+| `MCP_HOST` | `127.0.0.1` | Host do servidor HTTP (Docker usa `0.0.0.0`) |
 
 ### Personalizar modelos
 
