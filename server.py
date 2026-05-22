@@ -214,7 +214,7 @@ def build_http_app():
     session_manager = StreamableHTTPSessionManager(
         app=app,
         stateless=True,
-        json_response=False,
+        json_response=True,
     )
 
     async def router(scope, receive, send):
