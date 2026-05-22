@@ -176,7 +176,7 @@ Use esta opção para expor o servidor publicamente. Necessário para Claude Web
 
 **2. Suba os containers**
 
-Execute o instalador e escolha **opção 3** — ele pede a chave da OpenRouter, o token do Cloudflare e gera o `MCP_AUTH_TOKEN` automaticamente:
+Execute o instalador e escolha **opção 3** — ele pede a chave da OpenRouter e o token do Cloudflare:
 
 ```bash
 ./install.sh  # → opção 3
@@ -187,8 +187,6 @@ Ou configure manualmente:
 ```bash
 cp .env.example .env
 # Preencha OPENROUTER_API_KEY e CLOUDFLARE_TUNNEL_TOKEN
-# Gere MCP_AUTH_TOKEN:
-openssl rand -hex 32
 ```
 
 ```bash
@@ -418,7 +416,7 @@ mcp-prompt-refiner/
 
 - A chave da OpenRouter fica no `.env` — nunca vai ao repositório
 - `config.json` e `projects/*.md` estão no `.gitignore`
-- No modo Docker: rate limiting por IP, autenticação Bearer opcional, bind em `127.0.0.1` por padrão
+- No modo Docker: rate limiting por IP, bind em `0.0.0.0` acessível só via Cloudflare Named Tunnel
 
 ---
 
