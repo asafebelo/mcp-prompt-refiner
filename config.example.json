@@ -1,7 +1,5 @@
 {
-  "_comment_api_key": "RECOMENDADO: use a variável de ambiente OPENROUTER_API_KEY em vez de preencher api_key aqui. Modo stdio: passe via 'claude mcp add --env OPENROUTER_API_KEY=sk-or-...' ou exporte no shell antes de iniciar. Modo Docker: defina no .env (copiado de .env.example). A env var tem prioridade sobre o valor deste arquivo.",
   "openrouter": {
-    "api_key": "COLOQUE_SUA_CHAVE_AQUI",
     "models": [
       "nvidia/nemotron-3-super-120b-a12b:free",
       "openai/gpt-oss-120b:free",

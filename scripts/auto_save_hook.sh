@@ -27,6 +27,19 @@ if [ -n "$HOOK_INPUT" ]; then
         2>/dev/null || true)
 fi
 
+# Fallback anti-loop: se já injetamos prompt nesta sessão e save_context ainda
+# não foi chamado (MCP indisponível), sair sem bloquear de novo.
+_MARKER_DIR="/tmp/auto_save_hook"
+mkdir -p "$_MARKER_DIR"
+_SESSION_ID=""
+if [ -n "$TRANSCRIPT" ]; then
+    _SESSION_ID=$(basename "$(dirname "$TRANSCRIPT")" 2>/dev/null || true)
+fi
+_MARKER_FILE="${_MARKER_DIR}/${_SESSION_ID:-unknown}.injected"
+if [ -f "$_MARKER_FILE" ]; then
+    exit 0
+fi
+
 # Se save_context já foi chamado como ferramenta nesta sessão, não injeta.
 # Busca por chamada real de ferramenta no JSON (evita falso positivo por
 # menções textuais de "save_context" na conversa).
@@ -78,6 +91,9 @@ fi
 
 # Extrai nome do projeto do diretório atual
 PROJECT=$(basename "$PWD")
+
+# Cria marker para evitar loop em sessões sem MCP disponível
+touch "$_MARKER_FILE" 2>/dev/null || true
 
 # Injeta prompt — Claude lê como nova mensagem do usuário e chama save_context
 printf 'Antes de finalizar, chame a ferramenta save_context do mcp-prompt-refiner para o projeto "%s". Registre: o que foi feito nesta sessão, decisões técnicas tomadas e próximos passos pendentes.' "$PROJECT"

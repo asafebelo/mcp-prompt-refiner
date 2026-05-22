@@ -52,14 +52,42 @@ if [ ! -f "$SCRIPT_DIR/config.json" ]; then
   if [ -f "$SCRIPT_DIR/config.example.json" ]; then
     cp "$SCRIPT_DIR/config.example.json" "$SCRIPT_DIR/config.json"
     echo "==> config.json criado a partir de config.example.json"
-    echo "    IMPORTANTE: edite config.json e insira sua chave da OpenRouter em openrouter.api_key"
-    echo "                ou defina a variável de ambiente OPENROUTER_API_KEY"
+    echo "    (use config.json para personalizar modelos, temperatura e idioma)"
   else
     echo "AVISO: nem config.json nem config.example.json existem." >&2
   fi
 else
   echo "==> config.json já existe — mantido"
 fi
+
+# ---------------------------------------------------------------------------
+# Garante .env e funções de leitura/escrita (compartilhado por todos os modos)
+# ---------------------------------------------------------------------------
+
+ENV_FILE="$SCRIPT_DIR/.env"
+if [ ! -f "$ENV_FILE" ]; then
+  cp "$SCRIPT_DIR/.env.example" "$ENV_FILE"
+  echo "==> .env criado a partir de .env.example"
+fi
+
+# Lê valor atual de uma variável no .env (ignora linhas comentadas)
+_get_env_val() {
+  grep -E "^$1=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2-
+}
+
+# Define ou atualiza variável no .env
+_set_env_val() {
+  local key="$1" val="$2"
+  # Escapa caracteres especiais do sed no valor (|, \, &) para evitar
+  # interpretação no RHS do comando s|...|...|.
+  local escaped_val
+  escaped_val="$(printf '%s' "$val" | sed -e 's/[\\&|]/\\&/g')"
+  if grep -qE "^#*[[:space:]]*${key}=" "$ENV_FILE" 2>/dev/null; then
+    sed -i "s|^#*[[:space:]]*${key}=.*|${key}=${escaped_val}|" "$ENV_FILE"
+  else
+    printf '%s=%s\n' "$key" "$val" >> "$ENV_FILE"
+  fi
+}
 
 # ---------------------------------------------------------------------------
 # Menu interativo — escolha do modo de deploy
@@ -120,6 +148,32 @@ done
 echo "  Ambientes selecionados: $DEPLOY_MODES"
 
 # ---------------------------------------------------------------------------
+# Coleta OPENROUTER_API_KEY e salva em .env (fonte única para todos os modos)
+# ---------------------------------------------------------------------------
+
+OR_KEY="${OPENROUTER_API_KEY:-}"
+if [ -z "$OR_KEY" ]; then
+  CURRENT_OR=$(_get_env_val "OPENROUTER_API_KEY")
+  if [ -n "$CURRENT_OR" ] && [ "$CURRENT_OR" != "your_openrouter_key_here" ]; then
+    echo "==> OPENROUTER_API_KEY já configurada no .env — mantida"
+  else
+    echo ""
+    echo "Chave da OpenRouter (https://openrouter.ai/keys):"
+    printf "  Cole aqui (Enter para configurar depois): "
+    read -rs OR_KEY
+    echo ""
+    if [ -z "$OR_KEY" ]; then
+      echo "  AVISO: sem chave — edite .env e preencha OPENROUTER_API_KEY antes de usar." >&2
+    fi
+  fi
+fi
+
+if [ -n "$OR_KEY" ]; then
+  _set_env_val "OPENROUTER_API_KEY" "$OR_KEY"
+  echo "==> OPENROUTER_API_KEY salva em .env"
+fi
+
+# ---------------------------------------------------------------------------
 # Opção 1 — stdio para Claude Code
 # ---------------------------------------------------------------------------
 
@@ -143,9 +197,8 @@ _deploy_claude_code() {
   echo "✓ MCP registrado com sucesso."
   echo ""
   echo "PRÓXIMOS PASSOS:"
-  echo "  1. Edite config.json e insira sua chave da OpenRouter."
-  echo "  2. Reinicie o Claude Code para carregar o servidor."
-  echo "  3. Nas próximas sessões, use 'refine_prompt', 'save_context',"
+  echo "  1. Reinicie o Claude Code para carregar o servidor."
+  echo "  2. Nas próximas sessões, use 'refine_prompt', 'save_context',"
   echo "     'load_context' e 'list_projects' diretamente no chat."
 }
 
@@ -229,10 +282,9 @@ JSON
 
   echo ""
   echo "PRÓXIMOS PASSOS:"
-  echo "  1. Edite config.json e insira sua chave da OpenRouter."
-  echo "  2. Mescle o bloco acima em mcpServers no claude_desktop_config.json."
+  echo "  1. Mescle o bloco acima em mcpServers no claude_desktop_config.json."
   echo "     (se o arquivo já existir, adicione apenas a chave 'mcp-prompt-refiner')"
-  echo "  3. Encerre completamente o Claude Desktop (bandeja → Quit) e reabra."
+  echo "  2. Encerre completamente o Claude Desktop (bandeja → Quit) e reabra."
 }
 
 # ---------------------------------------------------------------------------
@@ -260,44 +312,6 @@ _deploy_docker_compose() {
     echo "ERRO: Docker Compose não encontrado." >&2
     echo "      Instale o plugin: https://docs.docker.com/compose/install/" >&2
     return 1
-  fi
-
-  # Garante .env a partir do .env.example
-  ENV_FILE="$SCRIPT_DIR/.env"
-  if [ ! -f "$ENV_FILE" ]; then
-    cp "$SCRIPT_DIR/.env.example" "$ENV_FILE"
-    echo "    .env criado a partir de .env.example"
-  fi
-
-  # Lê valor atual de uma variável no .env (ignora linhas comentadas)
-  _get_env_val() {
-    grep -E "^$1=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2-
-  }
-
-  # Define ou atualiza variável no .env
-  _set_env_val() {
-    local key="$1" val="$2"
-    # Escapa caracteres especiais do sed no valor (|, \, &) para evitar
-    # interpretação no RHS do comando s|...|...|.
-    local escaped_val
-    escaped_val="$(printf '%s' "$val" | sed -e 's/[\\&|]/\\&/g')"
-    if grep -qE "^#*[[:space:]]*${key}=" "$ENV_FILE" 2>/dev/null; then
-      sed -i "s|^#*[[:space:]]*${key}=.*|${key}=${escaped_val}|" "$ENV_FILE"
-    else
-      printf '%s=%s\n' "$key" "$val" >> "$ENV_FILE"
-    fi
-  }
-
-  # --- OPENROUTER_API_KEY ---
-  CURRENT_OR=$(_get_env_val "OPENROUTER_API_KEY")
-  if [ -z "$CURRENT_OR" ] || [ "$CURRENT_OR" = "your_openrouter_key_here" ]; then
-    echo "Chave da OpenRouter (https://openrouter.ai/keys):"
-    printf "  Cole aqui: "
-    read -rs OR_KEY
-    echo ""
-    [ -n "$OR_KEY" ] && _set_env_val "OPENROUTER_API_KEY" "$OR_KEY" && echo "    ✓ OPENROUTER_API_KEY salva"
-  else
-    echo "    OPENROUTER_API_KEY já configurada — mantida"
   fi
 
   # --- CLOUDFLARE_TUNNEL_TOKEN ---

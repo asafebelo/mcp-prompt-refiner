@@ -15,7 +15,10 @@ import time
 from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
 from openai import OpenAI, OpenAIError
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 
 # Caminho absoluto para config.json — fica na raiz do projeto, um nível acima de tools/

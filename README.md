@@ -14,9 +14,8 @@ cd mcp-prompt-refiner
 ```
 
 ```bash
-# 2. Adicione sua chave da OpenRouter
-#    Obtenha em: https://openrouter.ai/keys
-echo 'OPENROUTER_API_KEY=sk-or-v1-...' >> .env   # ou edite config.json
+# 2. Obtenha sua chave em https://openrouter.ai/keys
+#    O instalador pedirá a chave e a registra automaticamente no servidor MCP.
 ```
 
 ```bash
@@ -142,16 +141,22 @@ cd mcp-prompt-refiner
 
 ## Configuração
 
-Abra `config.json` (criado pelo `install.sh` a partir do `config.example.json`) e substitua o placeholder pela sua chave obtida em [openrouter.ai/keys](https://openrouter.ai/keys):
+O `install.sh` coleta a chave e salva em `.env` durante a instalação — mesmo padrão para todos os modos. Caso precise reconfigurar depois, edite `.env` diretamente:
+
+```
+OPENROUTER_API_KEY=sk-or-v1-...
+```
+
+O servidor lê o `.env` automaticamente ao inicializar via `python-dotenv`. No modo Docker, o Compose já injeta as variáveis do `.env` no container — o arquivo não precisa existir dentro da imagem.
+
+**Personalização de modelos, temperatura e idioma** — edite `config.json` (criado a partir de `config.example.json`):
 
 ```json
 {
   "openrouter": {
-    "api_key": "sk-or-v1-...",
     "models": [
       "google/gemini-2.0-flash-001",
-      "google/gemini-flash-1.5-8b",
-      "meta-llama/llama-3.1-8b-instruct",
+      "meta-llama/llama-3.1-8b-instruct:free",
       "anthropic/claude-haiku-4-5"
     ],
     "max_tokens": 2000,
@@ -162,7 +167,7 @@ Abra `config.json` (criado pelo `install.sh` a partir do `config.example.json`) 
 }
 ```
 
-> **Alternativa segura:** defina a variável de ambiente `OPENROUTER_API_KEY` em vez de escrever a chave no arquivo. A env var tem prioridade sobre `config.json`.
+> `config.json` não precisa de `api_key` — a chave é gerenciada pela variável de ambiente `OPENROUTER_API_KEY`.
 
 ---
 
@@ -212,7 +217,7 @@ Abra `config.json` (criado pelo `install.sh` a partir do `config.example.json`) 
 #### Pré-requisitos
 - [Claude Code](https://claude.ai/code) instalado (`claude --version` deve funcionar)
 - Python 3.11+ e o projeto clonado com `.venv` criado (`./install.sh`)
-- Chave da [OpenRouter](https://openrouter.ai/keys) configurada em `config.json` ou via `OPENROUTER_API_KEY`
+- Chave da [OpenRouter](https://openrouter.ai/keys) no `.env` do projeto (o `install.sh` faz isso automaticamente)
 
 #### Registrando o servidor
 
@@ -489,7 +494,7 @@ Os arquivos `projects/*.md` são montados como volume em `./projects/` — persi
 
 | Variável | Padrão | Descrição |
 |---|---|---|
-| `OPENROUTER_API_KEY` | — | Chave da OpenRouter (prioridade sobre `config.json`) |
+| `OPENROUTER_API_KEY` | — | Chave da OpenRouter — fonte única para todos os modos |
 | `CLOUDFLARE_TUNNEL_TOKEN` | — | Token do Named Tunnel (deploy Docker) |
 | `MCP_PORT` | `8000` | Porta do servidor HTTP |
 | `MCP_HOST` | `127.0.0.1` | Host do servidor HTTP (use `0.0.0.0` só com `MCP_AUTH_TOKEN` definido) |
@@ -527,7 +532,7 @@ mcp-prompt-refiner/
 ├── Dockerfile            # Imagem Python para deploy em container
 ├── docker-compose.yml    # Orquestra mcp-server + cloudflared
 ├── .env.example          # Template de variáveis de ambiente
-├── config.json           # Sua configuração com a chave (não vai ao git)
+├── config.json           # Personalização de modelos/idioma (sem chave, não vai ao git)
 ├── config.example.json   # Template versionado sem segredos
 ├── requirements.txt
 ├── install.sh
@@ -539,8 +544,8 @@ mcp-prompt-refiner/
 
 ## Segurança
 
-- `config.json` está no `.gitignore` — sua chave nunca vai ao repositório
-- Use a variável de ambiente `OPENROUTER_API_KEY` para não ter a chave em disco
+- A chave da OpenRouter é gerenciada pela variável `OPENROUTER_API_KEY` — nunca vai ao repositório
+- `config.json` (sem chave) está no `.gitignore` para proteger personalizações locais
 - Os contextos de projeto (`projects/*.md`) também são locais e não versionados
 
 ---
