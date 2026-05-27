@@ -132,7 +132,7 @@ async def list_tools() -> list[Tool]:
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     try:
         if name == "refine_prompt":
-            result = refine_prompt(
+            result = await refine_prompt(
                 intention=arguments["intention"],
                 project_name=arguments["project_name"],
                 language=arguments.get("language"),
@@ -211,22 +211,30 @@ def build_http_app():
     from starlette.responses import JSONResponse, PlainTextResponse
     from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 
-    session_manager = StreamableHTTPSessionManager(
+    # Clientes que suportam SSE (Claude Code, claude.ai) incluem text/event-stream no Accept.
+    # A sincronização do Cloudflare envia apenas Accept: application/json — usa json_response=True.
+    session_manager_sse = StreamableHTTPSessionManager(
+        app=app,
+        stateless=True,
+        json_response=False,
+    )
+    session_manager_json = StreamableHTTPSessionManager(
         app=app,
         stateless=True,
         json_response=True,
     )
 
     async def router(scope, receive, send):
-        """Roteia /mcp para o session_manager; demais paths retornam 404."""
+        """Roteia /mcp para o session_manager adequado; demais paths retornam 404."""
         if scope["type"] == "lifespan":
-            async with session_manager.run():
-                message = await receive()
-                if message["type"] == "lifespan.startup":
-                    await send({"type": "lifespan.startup.complete"})
-                message = await receive()
-                if message["type"] == "lifespan.shutdown":
-                    await send({"type": "lifespan.shutdown.complete"})
+            async with session_manager_sse.run():
+                async with session_manager_json.run():
+                    message = await receive()
+                    if message["type"] == "lifespan.startup":
+                        await send({"type": "lifespan.startup.complete"})
+                    message = await receive()
+                    if message["type"] == "lifespan.shutdown":
+                        await send({"type": "lifespan.shutdown.complete"})
             return
 
         path = scope.get("path", "")
@@ -245,7 +253,11 @@ def build_http_app():
                     headers={"Retry-After": "60"},
                 )(scope, receive, send)
                 return
-            await session_manager.handle_request(scope, receive, send)
+            accept = dict(scope.get("headers", [])).get(b"accept", b"").decode()
+            if "text/event-stream" in accept:
+                await session_manager_sse.handle_request(scope, receive, send)
+            else:
+                await session_manager_json.handle_request(scope, receive, send)
         else:
             await PlainTextResponse("Not Found", status_code=404)(scope, receive, send)
 

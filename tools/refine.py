@@ -52,7 +52,7 @@ def _load_project_context(project_name: str) -> str:
         return ""
 
 
-def refine_prompt(
+async def refine_prompt(
     intention: str,
     project_name: str,
     language: str | None = None,
@@ -92,5 +92,5 @@ def refine_prompt(
             f"Gere o prompt estruturado para o Claude Code executar."
         )
 
-    refined = call_llm(REFINER_SYSTEM_PROMPT, user_prompt)
+    refined = await call_llm(REFINER_SYSTEM_PROMPT, user_prompt)
     return refined

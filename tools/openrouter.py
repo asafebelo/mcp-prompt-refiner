@@ -8,15 +8,15 @@ e oferece um fallback automático caso o modelo primário falhe.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import sys
-import time
 from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
-from openai import OpenAI, OpenAIError
+from openai import AsyncOpenAI, OpenAIError
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
@@ -26,7 +26,7 @@ CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.json"
 
 # Cache em memória: config e cliente são lidos/criados uma vez por processo.
 _config_cache: dict[str, Any] | None = None
-_client_cache: OpenAI | None = None
+_client_cache: AsyncOpenAI | None = None
 _client_api_key: str = ""
 
 
@@ -50,11 +50,11 @@ def _load_config() -> dict[str, Any]:
         raise ValueError(f"config.json está malformado: {e}") from e
 
 
-def _get_client(api_key: str) -> OpenAI:
-    """Retorna o cliente OpenAI, criando um singleton por processo."""
+def _get_client(api_key: str) -> AsyncOpenAI:
+    """Retorna o cliente AsyncOpenAI, criando um singleton por processo."""
     global _client_cache, _client_api_key
     if _client_cache is None or _client_api_key != api_key:
-        _client_cache = OpenAI(
+        _client_cache = AsyncOpenAI(
             base_url="https://openrouter.ai/api/v1",
             api_key=api_key,
             timeout=30.0,
@@ -109,7 +109,7 @@ def _resolve_models(or_cfg: dict[str, Any]) -> list[str]:
     return _DEFAULT_MODELS
 
 
-def call_llm(system_prompt: str, user_prompt: str) -> str:
+async def call_llm(system_prompt: str, user_prompt: str) -> str:
     """Chama a LLM via OpenRouter percorrendo a lista de modelos até obter resposta."""
     config = _load_config()
     or_cfg = config.get("openrouter", {})
@@ -129,7 +129,7 @@ def call_llm(system_prompt: str, user_prompt: str) -> str:
     for attempt, model in enumerate(models):
         try:
             print(f"[mcp-prompt-refiner] chamando modelo {model}", file=sys.stderr)
-            response = client.chat.completions.create(
+            response = await client.chat.completions.create(
                 model=model,
                 messages=messages,
                 max_tokens=max_tokens,
@@ -146,7 +146,7 @@ def call_llm(system_prompt: str, user_prompt: str) -> str:
             status = getattr(getattr(e, "response", None), "status_code", None)
             if status in (429, 500, 502, 503, 504) and attempt < len(models) - 1:
                 delay = min(0.5 * (2 ** attempt), 8.0)
-                time.sleep(delay)
+                await asyncio.sleep(delay)
 
     raise RuntimeError(f"todos os modelos falharam. Último erro: {last_error}")
 
