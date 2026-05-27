@@ -46,8 +46,14 @@ O refinamento é feito por uma LLM leve via [OpenRouter](https://openrouter.ai),
 ```bash
 git clone https://github.com/asafebelo/mcp-prompt-refiner.git
 cd mcp-prompt-refiner
+chmod +x install.sh
 ./install.sh
 ```
+
+> **Windows:** o `install.sh` requer bash e utilitários Unix — não roda diretamente no `cmd.exe` nem no PowerShell. Use o **WSL** (Windows Subsystem for Linux) ou o **Git Bash**. No WSL, clone o repositório dentro do ambiente Linux e execute normalmente:
+> ```bash
+> chmod +x install.sh && ./install.sh
+> ```
 
 O instalador:
 1. Cria o `.venv` e instala dependências
@@ -94,9 +100,10 @@ Cole o bloco no arquivo de configuração do Claude Desktop:
 
 | Sistema | Caminho |
 |---|---|
-| Windows | `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\claude_desktop_config.json` |
 | macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
 | Linux | `~/.config/Claude/claude_desktop_config.json` |
+
+> **Windows:** o caminho inclui um ID gerado automaticamente, difícil de localizar manualmente. Use o atalho nativo: abra o Claude Desktop → **Configurações → Desenvolvedor → Editar Config** — o arquivo `claude_desktop_config.json` abrirá direto no seu editor padrão.
 
 > Se o arquivo já existir com outros servidores, adicione apenas a chave `"mcp-prompt-refiner"` dentro de `"mcpServers"` — não substitua o arquivo inteiro.
 
